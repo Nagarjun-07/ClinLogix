@@ -1,0 +1,177 @@
+import { useState } from 'react';
+import { X } from 'lucide-react';
+import { ClinicalEntry } from '../App';
+
+interface AddEntryModalProps {
+  onClose: () => void;
+  onSubmit: (entry: Omit<ClinicalEntry, 'id' | 'studentId' | 'studentName' | 'status' | 'submittedAt'>) => void;
+}
+
+const specialties = [
+  'Emergency Medicine',
+  'Internal Medicine',
+  'Surgery',
+  'Pediatrics',
+  'Obstetrics & Gynecology',
+  'Psychiatry',
+  'Family Medicine',
+  'Cardiology',
+  'Neurology',
+  'Orthopedics'
+];
+
+export function AddEntryModal({ onClose, onSubmit }: AddEntryModalProps) {
+  const [formData, setFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    location: '',
+    specialty: specialties[0],
+    hours: '',
+    activities: '',
+    learningObjectives: '',
+    reflection: '',
+    supervisorName: '',
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit({
+      ...formData,
+      hours: parseFloat(formData.hours),
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+          <h3 className="text-slate-900">Add Clinical Log Entry</h3>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-slate-700 mb-1">Date</label>
+              <input
+                type="date"
+                required
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-slate-700 mb-1">Hours</label>
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                max="24"
+                required
+                value={formData.hours}
+                onChange={(e) => setFormData({ ...formData, hours: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-slate-700 mb-1">Clinical Location</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g., City General Hospital"
+              value={formData.location}
+              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-slate-700 mb-1">Specialty/Department</label>
+            <select
+              required
+              value={formData.specialty}
+              onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              {specialties.map((specialty) => (
+                <option key={specialty} value={specialty}>{specialty}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm text-slate-700 mb-1">Supervisor Name</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g., Dr. John Smith"
+              value={formData.supervisorName}
+              onChange={(e) => setFormData({ ...formData, supervisorName: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-slate-700 mb-1">Clinical Activities</label>
+            <textarea
+              required
+              rows={3}
+              placeholder="Describe the clinical activities performed..."
+              value={formData.activities}
+              onChange={(e) => setFormData({ ...formData, activities: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-slate-700 mb-1">Learning Objectives Met</label>
+            <textarea
+              required
+              rows={3}
+              placeholder="List the learning objectives achieved..."
+              value={formData.learningObjectives}
+              onChange={(e) => setFormData({ ...formData, learningObjectives: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-slate-700 mb-1">Personal Reflection</label>
+            <textarea
+              required
+              rows={3}
+              placeholder="Reflect on your experience..."
+              value={formData.reflection}
+              onChange={(e) => setFormData({ ...formData, reflection: e.target.value })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg hover:from-blue-700 hover:to-teal-700 transition-all"
+            >
+              Submit Entry
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
