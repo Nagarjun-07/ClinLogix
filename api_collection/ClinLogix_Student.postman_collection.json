@@ -1,0 +1,63 @@
+{
+    "info": {
+        "_postman_id": "clinlogix-student",
+        "name": "ClinLogix - Student API",
+        "description": "API endpoints for Students (Logs)",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:8000/api",
+            "type": "string"
+        },
+        {
+            "key": "authToken",
+            "value": "PASTE_STUDENT_TOKEN_HERE",
+            "type": "string"
+        }
+    ],
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{authToken}}",
+                "type": "string"
+            }
+        ]
+    },
+    "item": [
+        {
+            "name": "My Logs",
+            "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/student/logs/"
+            }
+        },
+        {
+            "name": "Create Log Entry",
+            "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/student/logs/",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"date\": \"2026-01-08\",\n    \"specialty\": \"Internal Medicine\",\n    \"hours\": 4,\n    \"supervisor_name\": \"Dr. Valid Preceptor\",\n    \"location\": \"Main Hospital\",\n    \"activities\": \"Patient rounds\",\n    \"learning_objectives\": \"History taking\",\n    \"reflection\": \"Learned a lot\"\n}"
+                }
+            }
+        },
+        {
+            "name": "My Profile",
+            "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/me/"
+            }
+        }
+    ]
+}

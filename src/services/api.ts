@@ -123,7 +123,8 @@ export const api = {
 
 
     async updateLogStatus(id: string, status: 'approved' | 'rejected', feedback?: string) {
-        const response = await apiClient.patch(`instructor/reviews/${id}/`, { status, feedback });
+        const action = status === 'approved' ? 'approve' : 'reject';
+        const response = await apiClient.post(`instructor/reviews/${id}/${action}/`, { feedback });
         return response.data;
     },
 
@@ -268,8 +269,13 @@ export const api = {
         return response.data.data;
     },
 
-    async getAdminApprovedReviews() {
-        const response = await apiClient.get('admin/dashboard/approved_entries/');
+    async getAdminApprovedReviews(page = 1, pageSize = 10) {
+        const response = await apiClient.get(`admin/dashboard/approved_entries/?page=${page}&page_size=${pageSize}`);
+        return response.data.data;
+    },
+
+    async getLogFHIR(id: string) {
+        const response = await apiClient.get(`admin/dashboard/${id}/fhir/`);
         return response.data.data;
     }
 };

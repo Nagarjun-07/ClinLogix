@@ -50,15 +50,18 @@ def log_audit(actor_id, action, entity_type, entity_id, metadata=None):
         entity_id: UUID of the entity
         metadata: Optional dict of additional data
     """
-    AuditLogs.objects.create(
-        id=uuid.uuid4(),
-        actor_id=actor_id,
-        action=action,
-        entity_type=entity_type,
-        entity_id=entity_id,
-        metadata=metadata or {},
-        created_at=datetime.now()
-    )
+    try:
+        AuditLogs.objects.create(
+            id=uuid.uuid4(),
+            actor_id=actor_id,
+            action=action,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            metadata=metadata or {},
+            created_at=datetime.now()
+        )
+    except Exception as e:
+        print(f"Warning: Failed to create audit log: {e}")
 
 
 def send_notification_email(to_email, subject, message):

@@ -461,19 +461,27 @@ class AdminDashboardViewSet(ResponseMixin, viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def approved_entries(self, request):
         """
-        Get all approved log entries for admin review
+        Get all approved log entries for admin review with pagination
         """
         from api.models import Profiles
+        from django.core.paginator import Paginator
         
-        entries = LogEntries.objects.filter(status='approved').order_by('-submitted_at')
+        # Get pagination parameters
+        page_number = request.query_params.get('page', 1)
+        page_size = request.query_params.get('page_size', 10)
+        
+        # Optimize query with select_related if possible, or simple filter
+        # Since managed=False, verify if relations work. If not, keeping as is but paginated.
+        queryset = LogEntries.objects.filter(status='approved').order_by('-submitted_at')
+        
+        paginator = Paginator(queryset, page_size)
+        page_obj = paginator.get_page(page_number)
         
         data = []
-        for entry in entries:
+        for entry in page_obj:
             # Fetch student name manually or via related if available
             student_name = "Unknown"
             try:
-                # Assuming entry.student is UUID or user instance
-                # If entry.student is UUID (ForeignKey to User/Profile)
                 p = Profiles.objects.get(id=entry.student_id)
                 student_name = p.full_name
             except Profiles.DoesNotExist:
@@ -492,4 +500,80 @@ class AdminDashboardViewSet(ResponseMixin, viewsets.ViewSet):
                 'submitted_at': entry.submitted_at
             })
             
-        return self.success_response(data)
+        return self.success_response({
+            'results': data,
+            'total_count': paginator.count,
+            'num_pages': paginator.num_pages,
+            'current_page': int(page_number)
+        })
+
+    @action(detail=True, methods=['get'])
+    def fhir(self, request, pk=None):
+        """
+        Get FHIR format of the log entry (Simplified Format)
+        """
+        try:
+            entry = LogEntries.objects.get(id=pk)
+        except LogEntries.DoesNotExist:
+            return self.error_response("Log entry not found", status.HTTP_404_NOT_FOUND)
+
+        from datetime import datetime
+        
+        # Resource: Encounter (The Clinical Log)
+        encounter_resource = {
+            "resourceType": "Encounter",
+            "id": f"log-{str(entry.id)[:8]}", # or just str(entry.id)
+            "status": "finished" if entry.status == 'approved' else "planned",
+            "class": {
+                "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+                "code": "AMB",
+                "display": "ambulatory"
+            },
+            "subject": {
+                "display": f"Patient ID: {entry.patients_seen or 'N/A'}" # Using patients_seen or patient relation if exists
+            },
+            "period": {
+                "start": str(entry.date)
+            },
+            "reasonCode": [
+                {
+                    "text": entry.activities or "No activities recorded"
+                }
+            ],
+            "serviceType": {
+                "text": entry.specialty or "Clinical"
+            },
+            "location": [
+                {
+                    "location": {
+                        "display": entry.location or "Unknown Location"
+                    }
+                }
+            ],
+            "extension": [
+                {
+                    "url": "http://example.org/fhir/StructureDefinition/clinical-hours",
+                    "valueDecimal": float(entry.hours or 0)
+                },
+                {
+                    "url": "http://example.org/fhir/StructureDefinition/preceptor",
+                    "valueString": entry.supervisor_name or "Unknown"
+                }
+            ]
+        }
+        
+        # Assemble Bundle
+        bundle = {
+            "resourceType": "Bundle",
+            "type": "collection",
+            "timestamp": datetime.utcnow().isoformat() + "+00:00",
+            "identifier": {
+                "system": "http://example.org/fhir/student-export",
+                "value": f"student-{str(entry.student_id)[:8]}"
+            },
+            "entry": [
+                {"resource": encounter_resource}
+            ]
+        }
+        
+        return self.success_response(bundle)
