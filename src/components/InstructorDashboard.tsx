@@ -6,12 +6,14 @@ import { EntriesTable } from './EntriesTable';
 import { ReviewModal } from './ReviewModal';
 import { api } from '../services/api';
 import { supabase } from '../lib/supabase';
+import { useToast } from './ui/Toast';
 
 interface InstructorDashboardProps {
   currentUser: { id: string; name: string; email: string };
 }
 
 export function InstructorDashboard({ currentUser }: InstructorDashboardProps) {
+  const { showToast } = useToast();
   const [entries, setEntries] = useState<ClinicalEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedEntry, setSelectedEntry] = useState<ClinicalEntry | null>(null);
@@ -80,7 +82,7 @@ export function InstructorDashboard({ currentUser }: InstructorDashboardProps) {
       setSelectedEntry(null);
     } catch (error) {
       console.error('Failed to update log status:', error);
-      alert('Failed to submit review');
+      showToast('Failed to submit review', 'error');
     }
   };
 
@@ -103,18 +105,24 @@ export function InstructorDashboard({ currentUser }: InstructorDashboardProps) {
           value={uniqueStudents.toString()}
           icon={<Users className="w-6 h-6" />}
           color="blue"
+          onClick={() => setFilterStatus('all')}
+          isActive={filterStatus === 'all'}
         />
         <StatsCard
           title="Pending Reviews"
           value={pendingCount.toString()}
           icon={<AlertCircle className="w-6 h-6" />}
           color="amber"
+          onClick={() => setFilterStatus('pending')}
+          isActive={filterStatus === 'pending'}
         />
         <StatsCard
           title="Approved Entries"
           value={approvedCount.toString()}
           icon={<ClipboardCheck className="w-6 h-6" />}
           color="green"
+          onClick={() => setFilterStatus('approved')}
+          isActive={filterStatus === 'approved'}
         />
         <StatsCard
           title="Total Hours Logged"

@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { ClinicalEntry } from '../App';
+import { api } from '../services/api';
 
 interface AddEntryModalProps {
   onClose: () => void;
-  onSubmit: (entry: Omit<ClinicalEntry, 'id' | 'studentId' | 'studentName' | 'status' | 'submittedAt'>) => void;
+  onSubmit: (entry: any) => void;
 }
 
 const specialties = [
@@ -25,18 +25,37 @@ export function AddEntryModal({ onClose, onSubmit }: AddEntryModalProps) {
     date: new Date().toISOString().split('T')[0],
     location: '',
     specialty: specialties[0],
-    hours: '',
     activities: '',
     learningObjectives: '',
     reflection: '',
     supervisorName: '',
+    patientId: '',
+    patientAge: '',
+    patientGender: 'Male'
   });
+
+  useEffect(() => {
+    const fetchPreceptor = async () => {
+      try {
+        const preceptor = await api.getAssignedPreceptor();
+        if (preceptor && preceptor.full_name) {
+          setFormData(prev => ({ ...prev, supervisorName: preceptor.full_name }));
+        }
+      } catch (err) {
+        console.error('Failed to fetch preceptor', err);
+      }
+    };
+    fetchPreceptor();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({
       ...formData,
-      hours: parseFloat(formData.hours),
+      hours: 0,
+      patientId: formData.patientId,
+      patientAge: formData.patientAge,
+      patientGender: formData.patientGender
     });
   };
 
@@ -65,19 +84,47 @@ export function AddEntryModal({ onClose, onSubmit }: AddEntryModalProps) {
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
+          </div>
 
-            <div>
-              <label className="block text-sm text-slate-700 mb-1">Hours</label>
+          {/* Patient Details */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+            <div className="md:col-span-1">
+              <label className="block text-sm text-slate-700 mb-1">Patient ID/Ref</label>
               <input
-                type="number"
-                step="0.5"
-                min="0"
-                max="24"
+                type="text"
                 required
-                value={formData.hours}
-                onChange={(e) => setFormData({ ...formData, hours: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="e.g. #12345"
+                value={formData.patientId}
+                onChange={(e) => setFormData({ ...formData, patientId: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
               />
+            </div>
+            <div className="md:col-span-1">
+              <label className="block text-sm text-slate-700 mb-1">Age Group</label>
+              <select
+                required
+                value={formData.patientAge}
+                onChange={(e) => setFormData({ ...formData, patientAge: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+              >
+                <option value="">Select...</option>
+                <option value="infant">Infant (0-1 yr)</option>
+                <option value="child">Child (1-18 yrs)</option>
+                <option value="adult">Adult (19-64 yrs)</option>
+                <option value="geriatric">Geriatric (65+ yrs)</option>
+              </select>
+            </div>
+            <div className="md:col-span-1">
+              <label className="block text-sm text-slate-700 mb-1">Gender</label>
+              <select
+                value={formData.patientGender}
+                onChange={(e) => setFormData({ ...formData, patientGender: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg"
+              >
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
           </div>
 
@@ -108,14 +155,15 @@ export function AddEntryModal({ onClose, onSubmit }: AddEntryModalProps) {
           </div>
 
           <div>
-            <label className="block text-sm text-slate-700 mb-1">Supervisor Name</label>
+            <label className="block text-sm text-slate-700 mb-1">Supervisor Name (Preceptor)</label>
             <input
               type="text"
               required
-              placeholder="e.g., Dr. John Smith"
+              readOnly
+              placeholder="Loading assigned preceptor..."
               value={formData.supervisorName}
               onChange={(e) => setFormData({ ...formData, supervisorName: e.target.value })}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-100 text-slate-600 cursor-not-allowed"
             />
           </div>
 

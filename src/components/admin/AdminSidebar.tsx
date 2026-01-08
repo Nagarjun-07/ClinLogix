@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, UserCheck, UserPlus, Lock, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, UserCheck, UserPlus, FileCheck, LogOut } from 'lucide-react';
 
 interface AdminSidebarProps {
   activeTab: string;
@@ -10,7 +10,7 @@ const navigationItems = [
   { id: 'students', label: 'Students', icon: Users },
   { id: 'preceptors', label: 'Preceptors', icon: UserCheck },
   { id: 'assign', label: 'Assign Preceptor', icon: UserPlus },
-  { id: 'lock', label: 'Lock Logbook', icon: Lock },
+  { id: 'review', label: 'Review Entries', icon: FileCheck },
 ];
 
 export function AdminSidebar({ activeTab, onTabChange }: AdminSidebarProps) {
@@ -35,16 +35,15 @@ export function AdminSidebar({ activeTab, onTabChange }: AdminSidebarProps) {
           {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
-            
+
             return (
               <li key={item.id}>
                 <button
                   onClick={() => onTabChange(item.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                    isActive
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isActive
                       ? 'bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-md'
                       : 'text-slate-700 hover:bg-slate-100'
-                  }`}
+                    }`}
                 >
                   <Icon className="w-5 h-5" />
                   <span>{item.label}</span>

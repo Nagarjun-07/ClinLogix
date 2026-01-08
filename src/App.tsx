@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Session } from '@supabase/supabase-js';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+
 import { StudentDashboard } from './components/StudentDashboard';
 import { InstructorDashboard } from './components/InstructorDashboard';
 import { DashboardTab } from './components/admin/DashboardTab';
 import { UserManagementTab } from './components/admin/UserManagementTab';
 import { PreceptorsTab } from './components/admin/PreceptorsTab';
 import { AssignPreceptorTab } from './components/admin/AssignPreceptorTab';
-import { LockLogbookTab } from './components/admin/LockLogbookTab';
+import { ReviewEntriesTab } from './components/admin/ReviewEntriesTab';
 import { StudentLogbookPage } from './components/student/StudentLogbookPage';
 
 import { AppHeader } from './components/AppHeader';
 import { LoginPage } from './components/LoginPage';
 import { PreceptorReviewPage } from './components/preceptor/PreceptorReviewPage';
-import { supabase } from './lib/supabase';
 import { api, Profile } from './services/api';
 
 export type UserRole = 'student' | 'instructor' | 'admin';
@@ -33,81 +33,54 @@ export interface ClinicalEntry {
   feedback?: string;
   submittedAt: string;
   patientsSeen: number;
+  isLocked?: boolean;
 }
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentRole, setCurrentRole] = useState<UserRole>('student');
-  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; email: string; institutionId?: string } | null>(null);
-  const [currentView, setCurrentView] = useState<string>('dashboard');
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; email: string; institutionId?: string, role: UserRole } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const location = useLocation();
 
   useEffect(() => {
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        api.getCurrentUser().then((profile) => {
-          if (profile) {
-            initializeUser(profile);
-          }
-        });
-      } else {
-        setIsLoading(false);
-      }
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
-      if (session) {
-        api.getCurrentUser().then((profile) => {
-          if (profile) {
-            initializeUser(profile);
-          }
-        });
-      } else {
-        setIsAuthenticated(false);
-        setCurrentUser(null);
-        setIsLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    checkAuth();
   }, []);
+
+  const checkAuth = async () => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      try {
+        const profile = await api.getCurrentUser();
+        if (profile) {
+          initializeUser(profile);
+        } else {
+          handleLogout();
+        }
+      } catch {
+        handleLogout();
+      }
+    } else {
+      setIsLoading(false);
+    }
+  };
 
   const initializeUser = (profile: Profile) => {
     setCurrentUser({
       id: profile.id,
       name: profile.full_name || profile.email,
       email: profile.email,
-      institutionId: profile.institution_id
+      institutionId: profile.institution_id,
+      role: profile.role
     });
-    setCurrentRole(profile.role);
-    // Set default view based on role
-    if (profile.role === 'admin') {
-      setCurrentView('admin-dashboard');
-    } else {
-      setCurrentView('dashboard');
-    }
     setIsAuthenticated(true);
     setIsLoading(false);
   };
 
-  // Also handle manual role change view reset
-  const handleRoleChange = (role: UserRole) => {
-    setCurrentRole(role);
-    if (role === 'admin') {
-      setCurrentView('admin-dashboard');
-    } else {
-      setCurrentView('dashboard');
-    }
-  };
-
-  const handleSignOut = async () => {
+  const handleLogout = async () => {
     await api.signOut();
     setIsAuthenticated(false);
     setCurrentUser(null);
+    setIsLoading(false); // Ensure loading stops
   };
 
   if (isLoading) {
@@ -118,41 +91,81 @@ function App() {
     );
   }
 
-  if (!isAuthenticated) {
-    return <LoginPage />;
-  }
+  // Layout wrapper (Private Route)
+  const PrivateLayout = ({ role, children }: { role?: UserRole, children: React.ReactNode }) => {
+    if (!isAuthenticated || !currentUser) {
+      return <Navigate to="/login" replace state={{ from: location }} />;
+    }
+
+    if (role && currentUser.role !== role) {
+      // Redirect to their own dashboard
+      return <Navigate to={`/${currentUser.role}/dashboard`} replace />;
+    }
+
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <AppHeader
+          currentUser={currentUser}
+          currentRole={currentUser.role}
+          onSignOut={handleLogout}
+        />
+        <main className="flex-1 container mx-auto p-4 md:p-8">
+          {children}
+        </main>
+      </div>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <AppHeader
-        currentUser={currentUser!}
-        currentRole={currentRole}
-        onRoleChange={handleRoleChange}
-        currentView={currentView}
-        onViewChange={setCurrentView}
-        onSignOut={handleSignOut}
-      />
-      <main className="flex-1 container mx-auto p-4 md:p-8">
-        {/* Student View */}
-        {currentRole === 'student' && currentView === 'dashboard' && <StudentDashboard currentUser={currentUser!} onViewChange={setCurrentView} />}
-        {currentRole === 'student' && currentView === 'logbook' && <StudentLogbookPage />}
+    <Routes>
+      <Route path="/login" element={
+        !isAuthenticated ? <LoginPage /> : <Navigate to={`/${currentUser?.role}/dashboard`} replace />
+      } />
 
-        {/* Instructor View */}
-        {currentRole === 'instructor' && currentView === 'dashboard' && <InstructorDashboard currentUser={currentUser!} />}
-        {currentRole === 'instructor' && currentView === 'review' && <PreceptorReviewPage />}
+      {/* Student Routes */}
+      <Route path="/student/*" element={
+        <PrivateLayout role="student">
+          <Routes>
+            <Route path="dashboard" element={<StudentDashboard currentUser={currentUser!} onViewChange={() => { }} />} />
+            <Route path="logbook" element={<StudentLogbookPage />} />
+            <Route path="*" element={<Navigate to="dashboard" replace />} />
+          </Routes>
+        </PrivateLayout>
+      } />
 
-        {/* Admin View */}
-        {currentRole === 'admin' && (
-          <>
-            {currentView === 'admin-dashboard' && <DashboardTab />}
-            {currentView === 'admin-students' && <UserManagementTab institutionId={currentUser?.institutionId} />}
-            {currentView === 'admin-preceptors' && <PreceptorsTab />}
-            {currentView === 'admin-assign' && <AssignPreceptorTab />}
-            {currentView === 'admin-lock' && <LockLogbookTab />}
-          </>
-        )}
-      </main>
-    </div>
+      {/* Instructor Routes */}
+      <Route path="/instructor/*" element={
+        <PrivateLayout role="instructor">
+          <Routes>
+            <Route path="dashboard" element={<InstructorDashboard currentUser={currentUser!} />} />
+            <Route path="review" element={<PreceptorReviewPage />} />
+            <Route path="*" element={<Navigate to="dashboard" replace />} />
+          </Routes>
+        </PrivateLayout>
+      } />
+
+      {/* Admin Routes */}
+      <Route path="/admin/*" element={
+        <PrivateLayout role="admin">
+          <Routes>
+            <Route path="dashboard" element={<DashboardTab />} />
+            <Route path="students" element={<UserManagementTab institutionId={currentUser?.institutionId} />} />
+            <Route path="preceptors" element={<PreceptorsTab />} />
+            <Route path="assign" element={<AssignPreceptorTab />} />
+            <Route path="review" element={<ReviewEntriesTab />} />
+            <Route path="*" element={<Navigate to="dashboard" replace />} />
+          </Routes>
+        </PrivateLayout>
+      } />
+
+      {/* Root redirect */}
+      <Route path="/" element={
+        isAuthenticated ? <Navigate to={`/${currentUser?.role}/dashboard`} replace /> : <Navigate to="/login" replace />
+      } />
+
+      {/* Catch all */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
 

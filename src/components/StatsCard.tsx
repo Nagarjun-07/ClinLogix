@@ -7,6 +7,8 @@ interface StatsCardProps {
   icon: ReactNode;
   color: 'blue' | 'teal' | 'green' | 'amber' | 'purple';
   subtitle?: string;
+  onClick?: () => void;
+  isActive?: boolean;
 }
 
 const colorClasses = {
@@ -17,9 +19,20 @@ const colorClasses = {
   purple: 'bg-purple-500',
 };
 
-export function StatsCard({ title, value, icon, color, subtitle }: StatsCardProps) {
+const activeRingClasses = {
+  blue: 'ring-blue-500',
+  teal: 'ring-teal-500',
+  green: 'ring-green-500',
+  amber: 'ring-amber-500',
+  purple: 'ring-purple-500',
+};
+
+export function StatsCard({ title, value, icon, color, subtitle, onClick, isActive }: StatsCardProps) {
   return (
-    <Card>
+    <Card
+      className={`${onClick ? 'cursor-pointer hover:shadow-md transition-all hover:scale-[1.02]' : ''} ${isActive ? `ring-2 ${activeRingClasses[color]} shadow-md` : ''}`}
+      onClick={onClick}
+    >
       <CardContent className="p-6">
         <div className="flex items-center justify-between space-x-4">
           <div className="flex items-center space-x-4">
@@ -34,6 +47,11 @@ export function StatsCard({ title, value, icon, color, subtitle }: StatsCardProp
               {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
             </div>
           </div>
+          {onClick && (
+            <div className={`text-xs ${isActive ? 'text-blue-600 font-medium' : 'text-slate-400'}`}>
+              {isActive ? '✓ Active' : 'Click to filter'}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

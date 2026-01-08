@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { supabase } from '../lib/supabase';
+
 import { GraduationCap, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { api } from '../services/api';
-import { UserRole } from '../App';
+import { useToast } from './ui/Toast';
 
 export function LoginPage() {
+  const { showToast } = useToast();
   const [email, setEmail] = useState('sarah.johnson@medical.edu');
   const [password, setPassword] = useState('password');
   const [showPassword, setShowPassword] = useState(false);
@@ -14,7 +15,8 @@ export function LoginPage() {
   const [name, setName] = useState('');
   const [registrationMode, setRegistrationMode] = useState<'institutional' | 'user'>('user'); // Default to user (student/instructor) check
   const [institutionalKey, setInstitutionalKey] = useState('');
-  const [institutionName, setInstitutionName] = useState('');
+
+
 
   // ... existing state ...
 
@@ -34,80 +36,41 @@ export function LoginPage() {
 
     try {
       if (isSignUp) {
-        let roleToAssign: UserRole = 'student'; // Default
+        // Registration for invited users
+        console.log('Attempting registration with:', email);
+        const result = await api.register(email, password, name);
+        console.log('Registration response:', result);
 
-        if (registrationMode === 'institutional') {
-          // Validate Institutional Key
-          if (institutionalKey !== 'health@123') {
-            throw new Error('Invalid Institutional Key. Only authorized representatives can register.');
-          }
-          roleToAssign = 'admin';
+        if (result.success) {
+          // Registration successful - now login
+          showToast(`Registration successful! You are registered as ${result.role}. Please login.`, 'success');
+          setIsSignUp(false); // Switch to login mode
+          setName('');
         } else {
-          // Verify Logic for Student/Instructor
-          // Check if email is in authorized_users table
-          const invite = await api.checkInvite(email);
-          if (!invite) {
-            throw new Error('Email not authorized. Please contact your institution administrator to receive an invite.');
-          }
-          roleToAssign = invite.role as UserRole;
-        }
-
-        // Sign Up
-        const { error: signUpError, data } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: name || (registrationMode === 'user' ? (await api.checkInvite(email))?.full_name : ''),
-              role: roleToAssign,
-            },
-          },
-        });
-
-        if (signUpError) throw signUpError;
-
-        // Setup initial profile manually if needed
-        if (data.user) {
-          const { error: profileError } = await supabase.from('profiles').insert([{
-            id: data.user.id,
-            email: email,
-            full_name: name || (registrationMode === 'user' ? (await api.checkInvite(email))?.full_name : name),
-            role: roleToAssign
-          }]);
-          if (profileError) {
-            console.error('Profile creation warning:', profileError);
-          }
-        }
-
-        // Auto-login check: If email confirmation is disabled in Supabase, session will be present.
-        if (data.session) {
-          // Session exists, let the onAuthStateChange listener in App.tsx handle the redirect.
-        } else {
-          // Fallback
-          alert('Registration detailed stored. Please check your email/invite status.');
-          setIsSignUp(false);
+          throw new Error(result.error || 'Registration failed');
         }
       } else {
         // Sign In
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (signInError) {
-          if (signInError.message.includes("Email not confirmed")) {
-            throw new Error("Please confirm your email address before logging in. Check your inbox.");
-          }
-          throw signInError;
+        console.log('Attempting login with:', email);
+        const profile = await api.login(email, password);
+        console.log('Login response:', profile);
+        if (profile) {
+          // Success! App.tsx will handle the redirect because the token is in localStorage 
+          // and we should probably force a reload or call a callback.
+          window.location.reload();
+        } else {
+          throw new Error("Login failed. Please check your credentials.");
         }
       }
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'An error occurred');
+      console.error('Auth error:', err);
+      console.error('Error response:', err.response);
+      setError(err.response?.data?.error || err.response?.data?.detail || err.message || 'An error occurred');
     } finally {
       setIsLoading(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-teal-50 flex items-center justify-center p-4">
@@ -216,21 +179,22 @@ export function LoginPage() {
             )}
 
             <div>
-              <label className="block text-sm text-slate-700 mb-2">Email Address</label>
+              <label className="block text-sm text-slate-700 mb-2">Email or Username</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Mail className="w-5 h-5 text-slate-400" />
                 </div>
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all"
-                  placeholder="name@medical.edu"
+                  placeholder="admin or name@medical.edu"
                   required
                 />
               </div>
             </div>
+
 
             <div>
               <label className="block text-sm text-slate-700 mb-2">Password</label>

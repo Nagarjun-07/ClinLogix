@@ -1,110 +1,173 @@
-// Import icons from lucide-react for UI visuals
-import { Users, UserCheck, Lock, TrendingUp, BookOpen, Clock } from 'lucide-react';
-
-// Import React hooks
+import { Users, UserCheck, TrendingUp, BookOpen, Clock, AlertCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
-
-// Import reusable UI components
+import { useNavigate } from 'react-router-dom';
 import { StatsCard } from '../StatsCard';
 import { ActivityChart } from '../ActivityChart';
 import { SpecialtyDistribution } from '../SpecialtyDistribution';
-
-// Import API service for backend calls
-import { api } from '../../services/api';
-
-// Import Supabase client for realtime updates
 import { supabase } from '../../lib/supabase';
+import { api } from '../../services/api';
+import { useToast } from '../ui/Toast';
 
-// Dashboard main component
+interface Activity {
+  id: string;
+  student_name: string;
+  action: string;
+  time: string;
+  type: 'entry' | 'approval' | 'rejection' | 'request';
+}
+
+interface DashboardStats {
+  totalStudents: number;
+  totalPreceptors: number;
+  totalEntries: number;
+  pendingReviews: number;
+  totalHours: number;
+  approvedCount: number;
+}
+
 export function DashboardTab() {
-
-  // State to store admin statistics
-  const [stats, setStats] = useState({
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  const [stats, setStats] = useState<DashboardStats>({
     totalStudents: 0,
     totalPreceptors: 0,
-    totalEntries: 0
+    totalEntries: 0,
+    pendingReviews: 0,
+    totalHours: 0,
+    approvedCount: 0
   });
-
-  // State to handle loading status
+  const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
+  const [chartData, setChartData] = useState<{ activity: any[], specialty: any[] }>({ activity: [], specialty: [] });
   const [loading, setLoading] = useState(true);
 
-  // useEffect runs when component loads
   useEffect(() => {
+    fetchDashboardData();
 
-    // Function to fetch dashboard statistics
-    const fetchStats = async () => {
-      try {
-        // API call to get admin statistics
-        const data = await api.getAdminStats();
-        setStats(data); // Update state with fetched data
-      } catch (e) {
-        console.error(e); // Log error if API fails
-      } finally {
-        setLoading(false); // Stop loading after API call
-      }
-    };
-
-    // Call stats function on component load
-    fetchStats();
-
-    // Supabase realtime subscription for profiles and log entries
+    // Subscribe to real-time updates
     const subscription = supabase
-      .channel('admin_dashboard')
-
-      // Listen for any changes in profiles table
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'profiles' },
-        () => fetchStats() // Refresh stats on change
-      )
-
-      // Listen for any changes in log_entries table
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'log_entries' },
-        () => fetchStats() // Refresh stats on change
-      )
+      .channel('admin_dashboard_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchDashboardData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'log_entries' }, () => fetchDashboardData())
       .subscribe();
 
-    // Cleanup subscription when component unmounts
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => { subscription.unsubscribe(); };
   }, []);
 
-  // Static monthly activity data (used for chart)
-  const monthlyData = [
-    { month: 'Aug', entries: 45, hours: 180 },
-    { month: 'Sep', entries: 62, hours: 248 },
-    { month: 'Oct', entries: 78, hours: 312 },
-    { month: 'Nov', entries: 85, hours: 340 },
-    { month: 'Dec', entries: 71, hours: 284 },
-    { month: 'Jan', entries: 92, hours: 368 },
-  ];
+  const fetchDashboardData = async () => {
+    try {
+      // Fetch counts from Supabase directly for accurate stats
+      const [studentsRes, preceptorsRes, entriesRes, pendingRes, approvedRes] = await Promise.all([
+        supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'student'),
+        supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'instructor'),
+        supabase.from('log_entries').select('id, hours', { count: 'exact' }),
+        supabase.from('log_entries').select('id', { count: 'exact' }).eq('status', 'pending'),
+        supabase.from('log_entries').select('id', { count: 'exact' }).eq('status', 'approved'),
+      ]);
 
-  // Specialty-wise distribution data (used for pie chart)
-  const specialtyData = [
-    { name: 'Emergency Medicine', value: 15 },
-    { name: 'Internal Medicine', value: 12 },
-    { name: 'Surgery', value: 8 },
-    { name: 'Pediatrics', value: 10 },
-    { name: 'Cardiology', value: 7 },
-    { name: 'Psychiatry', value: 5 },
-  ];
+      // Calculate total hours
+      const { data: hoursData } = await supabase.from('log_entries').select('hours');
+      const totalHours = hoursData?.reduce((sum, entry) => sum + (entry.hours || 0), 0) || 0;
 
-  // JSX returned to UI
+      setStats({
+        totalStudents: studentsRes.count || 0,
+        totalPreceptors: preceptorsRes.count || 0,
+        totalEntries: entriesRes.count || 0,
+        pendingReviews: pendingRes.count || 0,
+        totalHours: Math.round(totalHours),
+        approvedCount: approvedRes.count || 0
+      });
+
+      // Fetch aggregated chart data from backend
+      try {
+        const charts = await api.getDashboardChartData();
+        if (charts) {
+          setChartData({
+            activity: charts.activity || [],
+            specialty: charts.specialty || []
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load chart data", err);
+      }
+
+      // Fetch recent activity (latest log entries with student names)
+      const { data: recentLogs } = await supabase
+        .from('log_entries')
+        .select('id, status, submitted_at, student:profiles!log_entries_student_fkey(full_name)')
+        .order('submitted_at', { ascending: false })
+        .limit(5);
+
+      if (recentLogs) {
+        const activities: Activity[] = recentLogs.map(log => {
+          const studentName = (log.student as any)?.full_name || 'Unknown Student';
+          const timeAgo = getTimeAgo(new Date(log.submitted_at));
+
+          let action = 'submitted a new entry';
+          let type: Activity['type'] = 'entry';
+
+          if (log.status === 'approved') {
+            action = 'entry was approved';
+            type = 'approval';
+          } else if (log.status === 'rejected') {
+            action = 'entry needs revision';
+            type = 'rejection';
+          } else if (log.status === 'pending') {
+            action = 'submitted for review';
+            type = 'request';
+          }
+
+          return {
+            id: log.id,
+            student_name: studentName,
+            action,
+            time: timeAgo,
+            type
+          };
+        });
+        setRecentActivity(activities);
+      }
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getTimeAgo = (date: Date): string => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString();
+  };
+
+  const handleNavigate = (tab: string, message?: string) => {
+    navigate(`/admin/${tab}`);
+    if (message) {
+      showToast(message, 'info');
+    }
+  };
+
+  // Calculate completion rate
+  const completionRate = stats.totalEntries > 0
+    ? Math.round((stats.approvedCount / stats.totalEntries) * 100)
+    : 0;
+
   return (
     <div className="space-y-6">
-
       {/* Page Header */}
       <div>
         <h2 className="text-slate-900">Dashboard Overview</h2>
-        <p className="text-slate-600 mt-1">
-          Welcome back! Here's what's happening today.
-        </p>
+        <p className="text-slate-600 mt-1">Welcome back! Here's what's happening today.</p>
       </div>
 
-      {/* Summary Statistics Cards */}
+      {/* Summary Cards - Clickable */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <StatsCard
           title="Total Students"
@@ -112,107 +175,98 @@ export function DashboardTab() {
           icon={<Users className="w-6 h-6" />}
           color="blue"
           subtitle="Registered users"
+          onClick={() => handleNavigate('students')}
         />
-
         <StatsCard
           title="Total Preceptors"
           value={loading ? "..." : stats.totalPreceptors.toString()}
           icon={<UserCheck className="w-6 h-6" />}
           color="teal"
           subtitle="Clinical supervisors"
+          onClick={() => handleNavigate('preceptors')}
         />
-
         <StatsCard
           title="Total Log Entries"
           value={loading ? "..." : stats.totalEntries.toString()}
           icon={<BookOpen className="w-6 h-6" />}
           color="purple"
           subtitle="All time submissions"
+          onClick={() => handleNavigate('students', 'Select a student to view their log entries')}
         />
       </div>
 
-      {/* Secondary Statistics */}
+      {/* Secondary Stats - Clickable */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatsCard
           title="Pending Reviews"
-          value="36"
-          icon={<BookOpen className="w-6 h-6" />}
+          value={loading ? "..." : stats.pendingReviews.toString()}
+          icon={<AlertCircle className="w-6 h-6" />}
           color="amber"
           subtitle="Awaiting approval"
+          onClick={() => handleNavigate('students', 'Check students with pending entries')}
         />
-
         <StatsCard
           title="Total Hours Logged"
-          value="12,480"
+          value={loading ? "..." : stats.totalHours.toLocaleString()}
           icon={<Clock className="w-6 h-6" />}
           color="green"
           subtitle="This semester"
         />
-
         <StatsCard
           title="Completion Rate"
-          value="87%"
+          value={loading ? "..." : `${completionRate}%`}
           icon={<TrendingUp className="w-6 h-6" />}
           color="blue"
-          subtitle="Above target"
+          subtitle={completionRate >= 80 ? "Above target" : "Needs improvement"}
         />
       </div>
 
-      {/* Charts Section */}
+      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ActivityChart data={monthlyData} />
-        <SpecialtyDistribution data={specialtyData} />
+        <ActivityChart data={chartData.activity.length > 0 ? chartData.activity : [
+          { month: 'No Data', entries: 0, hours: 0 }
+        ]} />
+        <SpecialtyDistribution data={chartData.specialty.length > 0 ? chartData.specialty : [
+          { name: 'No Data', value: 1 }
+        ]} />
       </div>
 
-      {/* Recent Activity Section */}
+      {/* Recent Activity - Dynamic */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className="p-6 border-b border-slate-200">
+        <div className="p-6 border-b border-slate-200 flex items-center justify-between">
           <h3 className="text-slate-900">Recent Activity</h3>
+          <span className="text-xs text-slate-500">Live updates</span>
         </div>
-
         <div className="p-6">
-          <div className="space-y-4">
-
-            {/* Loop through recent activities */}
-            {[
-              { student: 'Sarah Johnson', action: 'submitted new logbook entry', time: '2 hours ago', type: 'entry' },
-              { student: 'Dr. Michael Chen', action: 'approved 3 entries', time: '4 hours ago', type: 'approval' },
-              { student: 'Emily Chen', action: 'completed clinical rotation', time: '5 hours ago', type: 'completion' },
-              { student: 'James Mitchell', action: 'requested logbook review', time: '1 day ago', type: 'request' },
-            ].map((activity, index) => (
-
-              // Individual activity card
-              <div key={index} className="flex items-start gap-4 p-4 bg-slate-50 rounded-lg">
-
-                {/* Activity icon based on type */}
-                <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    activity.type === 'entry'
-                      ? 'bg-blue-100'
-                      : activity.type === 'approval'
-                      ? 'bg-green-100'
-                      : activity.type === 'completion'
-                      ? 'bg-purple-100'
-                      : 'bg-amber-100'
-                  }`}
-                >
-                  {activity.type === 'entry' && <BookOpen className="w-5 h-5 text-blue-600" />}
-                  {activity.type === 'approval' && <UserCheck className="w-5 h-5 text-green-600" />}
-                  {activity.type === 'completion' && <TrendingUp className="w-5 h-5 text-purple-600" />}
-                  {activity.type === 'request' && <Clock className="w-5 h-5 text-amber-600" />}
+          {loading ? (
+            <div className="text-center py-8 text-slate-500">Loading activity...</div>
+          ) : recentActivity.length === 0 ? (
+            <div className="text-center py-8 text-slate-500">No recent activity</div>
+          ) : (
+            <div className="space-y-3">
+              {recentActivity.map((activity) => (
+                <div key={activity.id} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${activity.type === 'entry' ? 'bg-blue-100' :
+                      activity.type === 'approval' ? 'bg-green-100' :
+                        activity.type === 'rejection' ? 'bg-red-100' :
+                          'bg-amber-100'
+                    }`}>
+                    {activity.type === 'entry' && <BookOpen className="w-4 h-4 text-blue-600" />}
+                    {activity.type === 'approval' && <UserCheck className="w-4 h-4 text-green-600" />}
+                    {activity.type === 'rejection' && <AlertCircle className="w-4 h-4 text-red-600" />}
+                    {activity.type === 'request' && <Clock className="w-4 h-4 text-amber-600" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-900">
+                      <span className="font-medium">{activity.student_name}</span>{' '}
+                      <span className="text-slate-600">{activity.action}</span>
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">{activity.time}</p>
+                  </div>
                 </div>
-
-                {/* Activity text details */}
-                <div className="flex-1">
-                  <p className="text-slate-900">
-                    <span className="font-medium">{activity.student}</span> {activity.action}
-                  </p>
-                  <p className="text-sm text-slate-500 mt-1">{activity.time}</p>
-                </div>
-
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

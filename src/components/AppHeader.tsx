@@ -1,6 +1,7 @@
-import { GraduationCap, LogOut, ChevronLeft, UserCog, ChevronDown } from "lucide-react";
+import { GraduationCap, LogOut, ChevronLeft, ChevronDown } from "lucide-react";
 import { Button } from "./ui/button";
 import { UserRole } from "../App";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -8,29 +9,22 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    DropdownMenuSub,
-    DropdownMenuSubTrigger,
-    DropdownMenuSubContent,
 } from "./ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 
 interface AppHeaderProps {
     currentUser: { id: string; name: string; email: string }
     currentRole: UserRole
-    onRoleChange: (role: UserRole) => void
-    currentView: string
-    onViewChange: (view: string) => void
     onSignOut: () => void
 }
 
 export function AppHeader({
     currentUser,
     currentRole,
-    onRoleChange,
-    currentView,
-    onViewChange,
     onSignOut
 }: AppHeaderProps) {
+    const navigate = useNavigate();
+    const location = useLocation();
 
     const roleLabels: Record<UserRole, string> = {
         student: 'Student',
@@ -40,9 +34,11 @@ export function AppHeader({
 
     const handleBackToDashboard = () => {
         if (currentRole === 'admin') {
-            onViewChange('admin-dashboard');
+            navigate('/admin/dashboard');
+        } else if (currentRole === 'instructor') {
+            navigate('/instructor/dashboard');
         } else {
-            onViewChange('dashboard');
+            navigate('/student/dashboard');
         }
     };
 
@@ -50,28 +46,29 @@ export function AppHeader({
         switch (currentRole) {
             case 'student':
                 return [
-                    { id: 'dashboard', label: 'Dashboard' },
-                    { id: 'logbook', label: 'My Logbook' }
+                    { path: '/student/dashboard', label: 'Dashboard' },
+                    { path: '/student/logbook', label: 'My Logbook' }
                 ];
             case 'instructor':
                 return [
-                    { id: 'dashboard', label: 'Dashboard' },
-                    { id: 'review', label: 'Review Entries' }
+                    { path: '/instructor/dashboard', label: 'Dashboard' },
+                    { path: '/instructor/review', label: 'Review Entries' }
                 ];
             case 'admin':
                 return [
-                    { id: 'admin-dashboard', label: 'Dashboard' },
-                    { id: 'admin-students', label: 'Users' },
-                    { id: 'admin-preceptors', label: 'Preceptors' },
-                    { id: 'admin-assign', label: 'Assign' },
-                    { id: 'admin-lock', label: 'Lock' }
+                    { path: '/admin/dashboard', label: 'Dashboard' },
+                    { path: '/admin/students', label: 'Users' },
+                    { path: '/admin/preceptors', label: 'Preceptors' },
+                    { path: '/admin/assign', label: 'Assign' },
+                    { path: '/admin/review', label: 'Review' }
                 ];
             default:
                 return [];
         }
     };
 
-    const isSubPage = currentView !== 'dashboard' && currentView !== 'admin-dashboard';
+    // Determine if we are on a sub-page (not dashboard)
+    const isDashboard = location.pathname.endsWith('dashboard');
 
     return (
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -86,7 +83,7 @@ export function AppHeader({
                         <span className="hidden md:inline-block">Clinical Logbook</span>
                     </div>
 
-                    {isSubPage && (
+                    {!isDashboard && (
                         <>
                             <div className="h-6 w-px bg-border mx-2" />
                             <Button
@@ -106,10 +103,10 @@ export function AppHeader({
                 <nav className="hidden md:flex items-center gap-1 absolute left-1/2 transform -translate-x-1/2">
                     {getNavItems().map((item) => (
                         <Button
-                            key={item.id}
-                            variant={currentView === item.id ? "secondary" : "ghost"}
+                            key={item.path}
+                            variant={location.pathname === item.path ? "secondary" : "ghost"}
                             size="sm"
-                            onClick={() => onViewChange(item.id)}
+                            onClick={() => navigate(item.path)}
                             className="text-sm font-medium transition-colors"
                         >
                             {item.label}
@@ -149,30 +146,11 @@ export function AppHeader({
                             <DropdownMenuLabel className="font-normal p-2">
                                 <div className="flex flex-col space-y-1">
                                     <p className="text-sm font-medium leading-none">{currentUser.name}</p>
-                                    <p className="text-xs leading-none text-muted-foreground">
+                                    <p className="text-sm leading-none text-muted-foreground">
                                         {currentUser.email}
                                     </p>
                                 </div>
                             </DropdownMenuLabel>
-                            <DropdownMenuSeparator className="my-1" />
-
-                            <DropdownMenuSub>
-                                <DropdownMenuSubTrigger className="py-2 cursor-pointer">
-                                    <UserCog className="mr-2 h-4 w-4" />
-                                    <span>Switch Role</span>
-                                </DropdownMenuSubTrigger>
-                                <DropdownMenuSubContent>
-                                    {(['student', 'instructor', 'admin'] as UserRole[]).map((role) => (
-                                        <DropdownMenuItem
-                                            key={role}
-                                            onClick={() => onRoleChange(role)}
-                                            className={`cursor-pointer ${currentRole === role ? "bg-accent" : ""}`}
-                                        >
-                                            <span>{roleLabels[role]}</span>
-                                        </DropdownMenuItem>
-                                    ))}
-                                </DropdownMenuSubContent>
-                            </DropdownMenuSub>
 
                             <DropdownMenuSeparator className="my-1" />
                             <DropdownMenuItem
@@ -190,17 +168,14 @@ export function AppHeader({
                 </div>
             </div>
 
-            {/* Mobile Nav Bar - Bottom or below header? 
-                 For simplicity in this refactor, adding a secondary row for mobile if needed, 
-                 or relying on centered nav to wrap. Let's start with a simple scrollable row for mobile. 
-             */}
+            {/* Mobile Nav Bar */}
             <div className="md:hidden border-t px-4 py-2 flex gap-2 overflow-x-auto no-scrollbar">
                 {getNavItems().map((item) => (
                     <Button
-                        key={item.id}
-                        variant={currentView === item.id ? "secondary" : "ghost"}
+                        key={item.path}
+                        variant={location.pathname === item.path ? "secondary" : "ghost"}
                         size="sm"
-                        onClick={() => onViewChange(item.id)}
+                        onClick={() => navigate(item.path)}
                         className="text-sm font-medium whitespace-nowrap"
                     >
                         {item.label}
