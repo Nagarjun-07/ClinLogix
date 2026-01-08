@@ -298,9 +298,6 @@ export const api = {
         }));
     },
 
-    // ----------------------------------------------------------------------
-    // LOCKS & LOGBOOK MANAGEMENT
-    // ----------------------------------------------------------------------
 
     async getStudentLogbookStats(institutionId?: string) {
         // This is a complex query. Simulating with multiple queries for now.
