@@ -7,7 +7,7 @@ import { DashboardTab } from './components/admin/DashboardTab';
 import { UserManagementTab } from './components/admin/UserManagementTab';
 import { PreceptorsTab } from './components/admin/PreceptorsTab';
 import { AssignPreceptorTab } from './components/admin/AssignPreceptorTab';
-import { LockLogbookTab } from './components/admin/LockLogbookTab';
+import { ReviewEntriesTab } from './components/admin/ReviewEntriesTab';
 import { StudentLogbookPage } from './components/student/StudentLogbookPage';
 
 import { AppHeader } from './components/AppHeader';

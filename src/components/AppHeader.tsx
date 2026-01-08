@@ -60,7 +60,7 @@ export function AppHeader({
                     { path: '/admin/students', label: 'Users' },
                     { path: '/admin/preceptors', label: 'Preceptors' },
                     { path: '/admin/assign', label: 'Assign' },
-                    { path: '/admin/lock', label: 'Lock' }
+                    { path: '/admin/review', label: 'Review' }
                 ];
             default:
                 return [];
