@@ -152,7 +152,7 @@ function App() {
             <Route path="students" element={<UserManagementTab institutionId={currentUser?.institutionId} />} />
             <Route path="preceptors" element={<PreceptorsTab />} />
             <Route path="assign" element={<AssignPreceptorTab />} />
-            <Route path="lock" element={<LockLogbookTab />} />
+            <Route path="review" element={<ReviewEntriesTab />} />
             <Route path="*" element={<Navigate to="dashboard" replace />} />
           </Routes>
         </PrivateLayout>

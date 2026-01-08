@@ -8,7 +8,7 @@ import { api } from '../services/api';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-
+import { useToast } from './ui/Toast';
 import { supabase } from '../lib/supabase';
 
 interface StudentDashboardProps {
@@ -17,6 +17,7 @@ interface StudentDashboardProps {
 }
 
 export function StudentDashboard({ currentUser, onViewChange }: StudentDashboardProps) {
+  const { showToast } = useToast();
   const [entries, setEntries] = useState<ClinicalEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -80,7 +81,7 @@ export function StudentDashboard({ currentUser, onViewChange }: StudentDashboard
       setShowAddModal(false);
     } catch (error) {
       console.error('Failed to create log:', error);
-      alert('Failed to create entry. Please try again.');
+      showToast('Failed to create entry. Please try again.', 'error');
     }
   };
 

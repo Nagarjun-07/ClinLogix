@@ -119,6 +119,66 @@ class AdminUserManagementViewSet(ResponseMixin, viewsets.ModelViewSet):
             status_code=status.HTTP_201_CREATED
         )
 
+    @action(detail=False, methods=['delete'], url_path='delete/(?P<email>[^/]+)')
+    @transaction.atomic
+    def delete_user(self, request, email=None):
+        """
+        Delete a user by email
+        """
+        if not email:
+            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Delete from AuthorizedUsers
+            auth_user = AuthorizedUsers.objects.get(email=email)
+            auth_user.delete()
+            
+            # Also delete from Profiles if exists
+            Profiles.objects.filter(email=email).delete()
+            
+            # Delete Django User if exists
+            from django.contrib.auth.models import User
+            User.objects.filter(email=email).delete()
+            
+            return self.success_response(message=f"User {email} deleted successfully")
+        except AuthorizedUsers.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['patch'], url_path='update/(?P<email>[^/]+)')
+    @transaction.atomic  
+    def update_user(self, request, email=None):
+        """
+        Update a user by email
+        """
+        if not email:
+            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            auth_user = AuthorizedUsers.objects.get(email=email)
+            
+            # Update fields
+            new_name = request.data.get('full_name')
+            new_email = request.data.get('new_email')  # Use new_email to avoid confusion
+            
+            if new_name:
+                auth_user.full_name = new_name
+            if new_email and new_email != email:
+                # Check if new email already exists
+                if AuthorizedUsers.objects.filter(email=new_email).exists():
+                    return Response({'error': 'Email already exists'}, status=status.HTTP_400_BAD_REQUEST)
+                auth_user.email = new_email
+                # Update Profiles too
+                Profiles.objects.filter(email=email).update(email=new_email, full_name=new_name or auth_user.full_name)
+            elif new_name:
+                Profiles.objects.filter(email=email).update(full_name=new_name)
+                
+            auth_user.save()
+            
+            serializer = self.get_serializer(auth_user)
+            return self.success_response(data=serializer.data, message="User updated successfully")
+        except AuthorizedUsers.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
 
 class AdminInstitutionViewSet(ResponseMixin, viewsets.ModelViewSet):
     """
@@ -173,22 +233,30 @@ class AdminAssignmentViewSet(ResponseMixin, viewsets.ModelViewSet):
         """
         from django.db.models import Count, Q
         
-        # Count active assignments for each instructor
+        # Count active assignments for each instructor, ordered by newest first
         preceptors = Profiles.objects.filter(role='instructor').annotate(
             student_count=Count(
                 'studentpreceptorassignments_preceptor_set',
                 filter=Q(studentpreceptorassignments_preceptor_set__status='active')
             )
-        )
+        ).order_by('-created_at')
         
         data = []
         for p in preceptors:
+            # Try to get status from AuthorizedUsers
+            try:
+                auth_user = AuthorizedUsers.objects.get(email=p.email)
+                status = auth_user.status or 'pending'
+            except AuthorizedUsers.DoesNotExist:
+                status = 'active'  # If not in authorized_users, assume active
+            
             data.append({
-                'id': p.id,
+                'id': str(p.id),
                 'full_name': p.full_name,
                 'email': p.email,
                 'student_count': p.student_count,
-                'max_students': 5
+                'max_students': 5,
+                'status': status
             })
             
         return self.success_response(data)
@@ -339,3 +407,89 @@ class AdminDashboardViewSet(ResponseMixin, viewsets.ViewSet):
             data=stats_data,
             message="Statistics retrieved successfully"
         )
+
+    @action(detail=False, methods=['get'])
+    def chart_data(self, request):
+        """
+        Get data for dashboard charts (Activity Trends & Specialty Distribution)
+        """
+        from django.db.models import Count, Sum
+        from django.db.models.functions import TruncMonth
+        from django.utils import timezone
+        import datetime
+
+        # 1. Monthly Activity (Last 6 months)
+        six_months_ago = timezone.now() - datetime.timedelta(days=180)
+        
+        monthly_stats = LogEntries.objects.filter(
+            submitted_at__gte=six_months_ago
+        ).annotate(
+            month=TruncMonth('submitted_at')
+        ).values('month').annotate(
+            entries=Count('id'),
+            hours=Sum('hours')
+        ).order_by('month')
+        
+        # Format for frontend
+        formatted_activity = []
+        for stat in monthly_stats:
+            if stat['month']:
+                formatted_activity.append({
+                    'month': stat['month'].strftime('%b'), # Jan, Feb
+                    'entries': stat['entries'],
+                    'hours': float(stat['hours'] or 0)
+                })
+
+        # 2. Specialty Distribution
+        specialty_stats = LogEntries.objects.values('specialty').annotate(
+            value=Count('id')
+        ).order_by('-value')[:6] # Top 6
+        
+        formatted_specialty = [
+            {'name': s['specialty'] or 'Unspecified', 'value': s['value']}
+            for s in specialty_stats if s['value'] > 0
+        ]
+        
+        # If no activity, provide at least empty structure or defaults if needed
+        # But frontend should handle empty arrays
+
+        return self.success_response({
+            'activity': formatted_activity,
+            'specialty': formatted_specialty
+        })
+
+    @action(detail=False, methods=['get'])
+    def approved_entries(self, request):
+        """
+        Get all approved log entries for admin review
+        """
+        from api.models import Profiles
+        
+        entries = LogEntries.objects.filter(status='approved').order_by('-submitted_at')
+        
+        data = []
+        for entry in entries:
+            # Fetch student name manually or via related if available
+            student_name = "Unknown"
+            try:
+                # Assuming entry.student is UUID or user instance
+                # If entry.student is UUID (ForeignKey to User/Profile)
+                p = Profiles.objects.get(id=entry.student_id)
+                student_name = p.full_name
+            except Profiles.DoesNotExist:
+                pass
+
+            data.append({
+                'id': str(entry.id),
+                'student_name': student_name,
+                'date': str(entry.date),
+                'specialty': entry.specialty,
+                'hours': entry.hours,
+                'supervisor_name': entry.supervisor_name,
+                'feedback': entry.feedback,
+                'status': entry.status,
+                'activities': entry.activities,
+                'submitted_at': entry.submitted_at
+            })
+            
+        return self.success_response(data)

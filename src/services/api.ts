@@ -30,6 +30,15 @@ export const api = {
         window.location.href = '/login';
     },
 
+    async register(email: string, password: string, name?: string) {
+        const response = await apiClient.post('register/', {
+            email,
+            password,
+            name
+        });
+        return response.data;
+    },
+
     async getCurrentUser() {
         try {
             const response = await apiClient.get('me/');
@@ -147,6 +156,65 @@ export const api = {
         return response.data;
     },
 
+    async getPreceptorsWithLoad() {
+        // Get preceptors with their student load from admin assignments endpoint
+        const response = await apiClient.get('admin/assignments/preceptor_stats/');
+        const data = response.data.data || response.data;
+
+        // Map to expected format
+        return data.map((p: any) => ({
+            id: p.id,
+            name: p.full_name,
+            email: p.email,
+            phone: 'N/A',
+            specialty: 'General', // Could be extended if profile has specialty field
+            institution: 'N/A',
+            studentsCount: p.student_count || 0,
+            status: p.status === 'registered' ? 'active' : p.status // Map 'registered' to 'active' for display
+        }));
+    },
+
+    async addPreceptor(email: string, name: string, institutionId?: string) {
+        // Invite a new preceptor (instructor role)
+        const response = await apiClient.post('admin/users/invite/', {
+            email,
+            full_name: name,
+            role: 'instructor',
+            institution_id: institutionId
+        });
+        return response.data;
+    },
+
+    async updatePreceptor(email: string, data: { name?: string, email?: string }) {
+        // Update preceptor via admin users update endpoint
+        const response = await apiClient.patch(`admin/users/update/${encodeURIComponent(email)}/`, {
+            full_name: data.name,
+            new_email: data.email
+        });
+        return response.data;
+    },
+
+    async deletePreceptor(email: string) {
+        // Delete from authorized_users by email
+        const response = await apiClient.delete(`admin/users/delete/${encodeURIComponent(email)}/`);
+        return response.data;
+    },
+
+    async updateStudent(email: string, data: { name?: string, email?: string }) {
+        // Update student via admin users update endpoint
+        const response = await apiClient.patch(`admin/users/update/${encodeURIComponent(email)}/`, {
+            full_name: data.name,
+            new_email: data.email
+        });
+        return response.data;
+    },
+
+    async deleteStudent(email: string) {
+        // Delete student from authorized_users by email
+        const response = await apiClient.delete(`admin/users/delete/${encodeURIComponent(email)}/`);
+        return response.data;
+    },
+
     // PATIENTS & ASSIGNMENTS
     async getInstitutionPatients(institutionId: string) {
         // Use admin endpoint for now (assuming admin view)
@@ -182,29 +250,26 @@ export const api = {
         return response.data.data || [];
     },
 
-    async getPreceptorsWithLoad(institutionId?: string) {
-        // Fetch ALL instructors (pending and registered) using the authorized users list
-        const users = await this.getAuthorizedUsers('instructor', institutionId);
-
-        return users.map((p: any) => ({
-            id: p.email, // Use email as ID since pending users don't have a profile UUID yet
-            name: p.full_name,
-            email: p.email,
-            phone: 'N/A',
-            specialty: 'General',
-            institution: p.institution_id || 'N/A', // authorized_users uses 'institution_id'
-            studentsCount: 0,
-            status: p.status // 'pending' or 'registered'
-        }));
+    async getAssignments() {
+        // Get all active student-preceptor assignments
+        const response = await apiClient.get('admin/assignments/');
+        return response.data.results || response.data || [];
     },
 
+
     async getAdminStats(_institutionId?: string) {
-        // This should be a custom endpoint in Django for efficiency
-        return {
-            totalStudents: 0,
-            totalPreceptors: 0,
-            totalEntries: 0,
-            activeSupervisors: 0
-        };
+        // Use the new backend endpoint for stats
+        const response = await apiClient.get('admin/dashboard/stats/');
+        return response.data.data;
+    },
+
+    async getDashboardChartData() {
+        const response = await apiClient.get('admin/dashboard/chart_data/');
+        return response.data.data;
+    },
+
+    async getAdminApprovedReviews() {
+        const response = await apiClient.get('admin/dashboard/approved_entries/');
+        return response.data.data;
     }
 };

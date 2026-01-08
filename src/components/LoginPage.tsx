@@ -2,8 +2,10 @@ import { useState } from 'react';
 
 import { GraduationCap, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { api } from '../services/api';
+import { useToast } from './ui/Toast';
 
 export function LoginPage() {
+  const { showToast } = useToast();
   const [email, setEmail] = useState('sarah.johnson@medical.edu');
   const [password, setPassword] = useState('password');
   const [showPassword, setShowPassword] = useState(false);
@@ -34,9 +36,19 @@ export function LoginPage() {
 
     try {
       if (isSignUp) {
-        // For now, let's alert that signup is handled by admin invites
-        setError("Registration is currently invitation-only. Please contact your administrator.");
-        return;
+        // Registration for invited users
+        console.log('Attempting registration with:', email);
+        const result = await api.register(email, password, name);
+        console.log('Registration response:', result);
+
+        if (result.success) {
+          // Registration successful - now login
+          showToast(`Registration successful! You are registered as ${result.role}. Please login.`, 'success');
+          setIsSignUp(false); // Switch to login mode
+          setName('');
+        } else {
+          throw new Error(result.error || 'Registration failed');
+        }
       } else {
         // Sign In
         console.log('Attempting login with:', email);
@@ -51,9 +63,9 @@ export function LoginPage() {
         }
       }
     } catch (err: any) {
-      console.error('Login error:', err);
+      console.error('Auth error:', err);
       console.error('Error response:', err.response);
-      setError(err.response?.data?.detail || err.message || 'An error occurred');
+      setError(err.response?.data?.error || err.response?.data?.detail || err.message || 'An error occurred');
     } finally {
       setIsLoading(false);
     }

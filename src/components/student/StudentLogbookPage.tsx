@@ -4,8 +4,10 @@ import { AddLogModal } from './AddLogModal';
 import { api } from '../../services/api';
 import { ClinicalEntry } from '../../App';
 import { supabase } from '../../lib/supabase';
+import { useToast } from '../ui/Toast';
 
 export function StudentLogbookPage() {
+  const { showToast } = useToast();
   const [logs, setLogs] = useState<ClinicalEntry[]>([]);
   const [isLocked] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -88,7 +90,7 @@ export function StudentLogbookPage() {
       setShowAddModal(false);
     } catch (error) {
       console.error('Failed to create log:', error);
-      alert('Failed to save log entry');
+      showToast('Failed to save log entry', 'error');
     }
   };
 
@@ -110,7 +112,7 @@ export function StudentLogbookPage() {
       setTimeout(() => setShowSubmitConfirm(false), 3000);
     } catch (e) {
       console.error('Submit failed', e);
-      alert('Failed to submit selected logs');
+      showToast('Failed to submit selected logs', 'error');
     }
   };
 

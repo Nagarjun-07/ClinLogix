@@ -134,6 +134,10 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Email Configuration
+# Use console backend for development to avoid SMTP errors
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

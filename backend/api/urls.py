@@ -5,6 +5,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     MeView,
+    RegisterView,
     # Student views
     StudentLogViewSet,
     StudentPatientViewSet,
@@ -40,6 +41,9 @@ admin_router.register(r'dashboard', AdminDashboardViewSet, basename='admin-dashb
 urlpatterns = [
     # Current user profile
     path('me/', MeView.as_view(), name='me'),
+    
+    # Registration endpoint (for invited users)
+    path('register/', RegisterView.as_view(), name='register'),
     
     # Profiles (registered users) - for backward compatibility
     path('profiles/', include([

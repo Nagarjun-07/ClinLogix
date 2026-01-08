@@ -1,6 +1,7 @@
 import { Search, Lock, Unlock, AlertCircle, Calendar } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../services/api';
+import { useToast } from '../ui/Toast';
 
 interface Logbook {
   id: string; // student ID
@@ -15,6 +16,7 @@ interface Logbook {
 }
 
 export function LockLogbookTab() {
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [logbooks, setLogbooks] = useState<Logbook[]>([]);
   const [selectedLogbooks, setSelectedLogbooks] = useState<string[]>([]);
@@ -57,7 +59,7 @@ export function LockLogbookTab() {
       ));
     } catch (error) {
       console.error('Failed to toggle lock:', error);
-      alert('Failed to update lock status');
+      showToast('Failed to update lock status', 'error');
     }
   };
 
@@ -76,7 +78,7 @@ export function LockLogbookTab() {
       setSelectedLogbooks([]);
     } catch (error) {
       console.error('Bulk lock failed:', error);
-      alert('Failed to process some locks');
+      showToast('Failed to process some locks', 'error');
     }
   };
 
@@ -238,8 +240,8 @@ export function LockLogbookTab() {
                       <button
                         onClick={() => handleToggleLock(logbook.id, logbook.isLocked, logbook.term)}
                         className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors ${logbook.isLocked
-                            ? 'text-green-600 hover:bg-green-50'
-                            : 'text-purple-600 hover:bg-purple-50'
+                          ? 'text-green-600 hover:bg-green-50'
+                          : 'text-purple-600 hover:bg-purple-50'
                           }`}
                       >
                         {logbook.isLocked ? (
