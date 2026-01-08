@@ -1,4 +1,3 @@
-
 import { supabase } from '../lib/supabase';
 import { ClinicalEntry, UserRole } from '../App';
 
@@ -11,7 +10,6 @@ export interface Profile {
 }
 
 export const api = {
-    // Auth
     async getAuthorizedUsers(role: 'student' | 'instructor', institutionId?: string) {
         let query = supabase
             .from('authorized_users')
@@ -205,9 +203,6 @@ export const api = {
         return data;
     },
 
-    /**
-     * Assign a patient to a student
-     */
     async assignPatientToStudent(studentId: string, patientId: string) {
         const { data: { user } } = await supabase.auth.getUser(); // assigned_by
 
