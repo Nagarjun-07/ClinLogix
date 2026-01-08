@@ -206,7 +206,6 @@ lockedDate: lock?.locked_at
 }
 })
 },
-
 async toggleLockLogbook(studentId: string, term: string, shouldLock: boolean) {
 if (shouldLock) {
 const { data: { user } } = await supabase.auth.getUser()
