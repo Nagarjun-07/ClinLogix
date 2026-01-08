@@ -1,0 +1,297 @@
+{
+    "info": {
+        "_postman_id": "clinlogix-v1",
+        "name": "ClinLogix API Collection",
+        "description": "Complete API collection for Student Clinical Logbook. Includes Admin, Instructor, and Student endpoints.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:8000/api",
+            "type": "string"
+        },
+        {
+            "key": "authToken",
+            "value": "PASTE_SUPABASE_JWT_HERE",
+            "type": "string",
+            "description": "Get this from the browser DevTools (Network tab) after logging in"
+        }
+    ],
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{authToken}}",
+                "type": "string"
+            }
+        ]
+    },
+    "item": [
+        {
+            "name": "Admin",
+            "item": [
+                {
+                    "name": "Dashboard",
+                    "item": [
+                        {
+                            "name": "Get Overview Stats",
+                            "request": {
+                                "method": "GET",
+                                "url": "{{baseUrl}}/admin/dashboard/status/",
+                                "description": "Fetch aggregated stats for dashboard cards"
+                            }
+                        },
+                        {
+                            "name": "Get Chart Data",
+                            "request": {
+                                "method": "GET",
+                                "url": "{{baseUrl}}/admin/dashboard/chart_data/",
+                                "description": "Fetch data for dashboard charts (activity trends, specialty dist)"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Review & FHIR",
+                    "item": [
+                        {
+                            "name": "Get Approved Entries (Paginated)",
+                            "request": {
+                                "method": "GET",
+                                "url": {
+                                    "raw": "{{baseUrl}}/admin/dashboard/approved_entries/?page=1&page_size=10",
+                                    "host": [
+                                        "{{baseUrl}}"
+                                    ],
+                                    "path": [
+                                        "admin",
+                                        "dashboard",
+                                        "approved_entries",
+                                        ""
+                                    ],
+                                    "query": [
+                                        {
+                                            "key": "page",
+                                            "value": "1"
+                                        },
+                                        {
+                                            "key": "page_size",
+                                            "value": "10"
+                                        }
+                                    ]
+                                },
+                                "description": "Fetch list of approved logs for review tab"
+                            }
+                        },
+                        {
+                            "name": "Get FHIR Bundle (Log Export)",
+                            "request": {
+                                "method": "GET",
+                                "url": {
+                                    "raw": "{{baseUrl}}/admin/dashboard/:id/fhir/",
+                                    "host": [
+                                        "{{baseUrl}}"
+                                    ],
+                                    "path": [
+                                        "admin",
+                                        "dashboard",
+                                        ":id",
+                                        "fhir",
+                                        ""
+                                    ],
+                                    "variable": [
+                                        {
+                                            "key": "id",
+                                            "value": "REPLACE_WITH_LOG_UUID",
+                                            "description": "UUID of the log entry"
+                                        }
+                                    ]
+                                },
+                                "description": "Export a clinical log entry in HL7 FHIR Bundle format"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "Users & Management",
+                    "item": [
+                        {
+                            "name": "List All Users",
+                            "request": {
+                                "method": "GET",
+                                "url": "{{baseUrl}}/admin/users/"
+                            }
+                        },
+                        {
+                            "name": "Invite User",
+                            "request": {
+                                "method": "POST",
+                                "url": "{{baseUrl}}/admin/users/invite/",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"email\": \"newstudent@example.com\",\n    \"role\": \"student\",\n    \"full_name\": \"New Student Name\"\n}"
+                                },
+                                "description": "Send invitation to a new user"
+                            }
+                        },
+                        {
+                            "name": "Assign Preceptor",
+                            "request": {
+                                "method": "POST",
+                                "url": "{{baseUrl}}/admin/assignments/",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n    \"student_id\": \"STUDENT_UUID\",\n    \"preceptor_id\": \"PRECEPTOR_UUID\"\n}"
+                                }
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Instructor",
+            "item": [
+                {
+                    "name": "List Pending Reviews",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/instructor/reviews/"
+                    }
+                },
+                {
+                    "name": "Approve Log Entry",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{baseUrl}}/instructor/reviews/:id/approve/",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "instructor",
+                                "reviews",
+                                ":id",
+                                "approve",
+                                ""
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "LOG_ENTRY_UUID"
+                                }
+                            ]
+                        },
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"feedback\": \"Excellent work, very detailed.\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Reject Log Entry",
+                    "request": {
+                        "method": "POST",
+                        "url": {
+                            "raw": "{{baseUrl}}/instructor/reviews/:id/reject/",
+                            "host": [
+                                "{{baseUrl}}"
+                            ],
+                            "path": [
+                                "instructor",
+                                "reviews",
+                                ":id",
+                                "reject",
+                                ""
+                            ],
+                            "variable": [
+                                {
+                                    "key": "id",
+                                    "value": "LOG_ENTRY_UUID"
+                                }
+                            ]
+                        },
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"feedback\": \"Please clarify the procedure details.\"\n}"
+                        }
+                    }
+                },
+                {
+                    "name": "Get My Students",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/instructor/students/"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Student",
+            "item": [
+                {
+                    "name": "List My Logs",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/student/logs/"
+                    }
+                },
+                {
+                    "name": "Create Log Entry",
+                    "request": {
+                        "method": "POST",
+                        "url": "{{baseUrl}}/student/logs/",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"date\": \"2026-01-08\",\n    \"specialty\": \"Emergency Medicine\",\n    \"hours\": 5,\n    \"supervisor_name\": \"Dr. House\",\n    \"location\": \"General Hospital\",\n    \"activities\": \"Observed triage process\",\n    \"learning_objectives\": \"Understand triage\",\n    \"reflection\": \"Fast paced environment\"\n}"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Common",
+            "item": [
+                {
+                    "name": "Get Current User (Me)",
+                    "request": {
+                        "method": "GET",
+                        "url": "{{baseUrl}}/me/"
+                    }
+                }
+            ]
+        }
+    ]
+}

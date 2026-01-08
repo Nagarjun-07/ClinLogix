@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, CheckCircle, User, Calendar, Stethoscope, Clock, MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, CheckCircle, User, Calendar, Stethoscope, Clock, MessageSquare, ChevronLeft, ChevronRight, FileJson, X, Copy, Check } from 'lucide-react';
 import { api } from '../../services/api';
 
 interface ApprovedEntry {
@@ -8,7 +8,7 @@ interface ApprovedEntry {
     date: string;
     specialty: string;
     hours: number;
-    supervisor_name: string; // Instructor
+    supervisor_name: string;
     feedback: string;
     status: string;
     activities: string;
@@ -19,6 +19,11 @@ export function ReviewEntriesTab() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
+    // FHIR Modal State
+    const [fhirData, setFhirData] = useState<string | null>(null);
+    const [isFhirModalOpen, setIsFhirModalOpen] = useState(false);
+    const [copySuccess, setCopySuccess] = useState(false);
+
     // Pagination State
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
@@ -27,21 +32,17 @@ export function ReviewEntriesTab() {
 
     useEffect(() => {
         loadEntries();
-    }, [page]); // Reload when page changes
+    }, [page]);
 
     const loadEntries = async () => {
         setLoading(true);
         try {
-            // Pass page and limit (and potentially search if backend supported it)
             const data = await api.getAdminApprovedReviews(page, PAGE_SIZE);
-
-            // Use the response structure { results, total_count, num_pages, current_page }
             if (data && data.results) {
                 setEntries(data.results);
                 setTotalPages(data.num_pages);
                 setTotalCount(data.total_count);
             } else {
-                // Fallback if backend not ready
                 setEntries(Array.isArray(data) ? data : []);
             }
         } catch (error) {
@@ -51,7 +52,27 @@ export function ReviewEntriesTab() {
         }
     };
 
-    // Client-side filtering for current page (limited, but keeps existing functionality)
+    const handleViewFHIR = async (id: string) => {
+        try {
+            const data = await api.getLogFHIR(id);
+            setFhirData(JSON.stringify(data, null, 2));
+            setIsFhirModalOpen(true);
+            setCopySuccess(false);
+        } catch (e) {
+            console.error("Failed to fetch FHIR", e);
+            alert("Failed to load FHIR data. Ensure backend is running.");
+        }
+    };
+
+    const handleCopyFHIR = () => {
+        if (fhirData) {
+            navigator.clipboard.writeText(fhirData);
+            setCopySuccess(true);
+            setTimeout(() => setCopySuccess(false), 2000);
+        }
+    };
+
+    // Client-side filtering
     const filteredEntries = entries.filter(entry =>
         entry.student_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         entry.specialty?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -67,7 +88,6 @@ export function ReviewEntriesTab() {
                 </div>
             </div>
 
-            {/* Search */}
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <div className="relative max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -81,7 +101,6 @@ export function ReviewEntriesTab() {
                 </div>
             </div>
 
-            {/* Table */}
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
                 {loading ? (
                     <div className="p-8 text-center text-slate-500">Loading approved entries...</div>
@@ -98,7 +117,7 @@ export function ReviewEntriesTab() {
                                         <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Details (Hours)</th>
                                         <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Instructor</th>
                                         <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Feedback</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Status</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
@@ -151,11 +170,15 @@ export function ReviewEntriesTab() {
                                                     <span className="text-sm text-slate-400 italic">No feedback</span>
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
-                                                    <CheckCircle className="w-3.5 h-3.5" />
-                                                    Approved
-                                                </span>
+                                            <td className="px-6 py-4 text-center">
+                                                <button
+                                                    onClick={() => handleViewFHIR(entry.id)}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 transition-colors shadow-sm whitespace-nowrap"
+                                                    title="View FHIR Format"
+                                                >
+                                                    <FileJson className="w-3.5 h-3.5" />
+                                                    FHIR
+                                                </button>
                                             </td>
                                         </tr>
                                     ))}
@@ -163,7 +186,6 @@ export function ReviewEntriesTab() {
                             </table>
                         </div>
 
-                        {/* Pagination Controls */}
                         <div className="border-t border-slate-200 px-6 py-4 flex items-center justify-between">
                             <div className="text-sm text-slate-500">
                                 Showing page <span className="font-medium text-slate-900">{page}</span> of <span className="font-medium text-slate-900">{totalPages}</span>
@@ -189,6 +211,46 @@ export function ReviewEntriesTab() {
                     </>
                 )}
             </div>
+
+            {/* FHIR Modal */}
+            {isFhirModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-200">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-50 rounded-lg">
+                                    <FileJson className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-bold text-slate-900">FHIR Resource Bundle</h2>
+                                    <p className="text-xs text-slate-500">Standard Healthcare Interoperability Format</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleCopyFHIR}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+                                >
+                                    {copySuccess ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                    {copySuccess ? 'Copied' : 'Copy JSON'}
+                                </button>
+                                <button
+                                    onClick={() => setIsFhirModalOpen(false)}
+                                    className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-auto bg-slate-50 p-6">
+                            <pre className="text-xs font-mono text-slate-800 bg-white p-4 rounded-lg border border-slate-200 shadow-sm overflow-x-auto leading-relaxed">
+                                {fhirData}
+                            </pre>
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }

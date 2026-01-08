@@ -1,0 +1,92 @@
+{
+    "info": {
+        "_postman_id": "clinlogix-instructor",
+        "name": "ClinLogix - Instructor API",
+        "description": "API endpoints for Instructors (Reviews, Approvals)",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:8000/api",
+            "type": "string"
+        },
+        {
+            "key": "authToken",
+            "value": "PASTE_INSTRUCTOR_TOKEN_HERE",
+            "type": "string"
+        }
+    ],
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{authToken}}",
+                "type": "string"
+            }
+        ]
+    },
+    "item": [
+        {
+            "name": "List Pending Reviews",
+            "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/instructor/reviews/"
+            }
+        },
+        {
+            "name": "Approve Log Entry",
+            "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/instructor/reviews/:id/approve/",
+                "variable": [
+                    {
+                        "key": "id",
+                        "value": "LOG_UUID_HERE"
+                    }
+                ],
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"feedback\": \"Approved, good work.\"\n}"
+                }
+            }
+        },
+        {
+            "name": "Reject Log Entry",
+            "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/instructor/reviews/:id/reject/",
+                "variable": [
+                    {
+                        "key": "id",
+                        "value": "LOG_UUID_HERE"
+                    }
+                ],
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"feedback\": \"Please add more details.\"\n}"
+                }
+            }
+        },
+        {
+            "name": "My Students",
+            "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/instructor/students/"
+            }
+        }
+    ]
+}

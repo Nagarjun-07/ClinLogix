@@ -1,0 +1,128 @@
+{
+    "info": {
+        "_postman_id": "clinlogix-admin",
+        "name": "ClinLogix - Admin API",
+        "description": "API endpoints for Administrators (Dashboard, User Management, Review)",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        {
+            "key": "baseUrl",
+            "value": "http://localhost:8000/api",
+            "type": "string"
+        },
+        {
+            "key": "authToken",
+            "value": "PASTE_ADMIN_TOKEN_HERE",
+            "type": "string"
+        }
+    ],
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{authToken}}",
+                "type": "string"
+            }
+        ]
+    },
+    "item": [
+        {
+            "name": "Dashboard Stats",
+            "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/dashboard/status/"
+            }
+        },
+        {
+            "name": "Dashboard Charts",
+            "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/dashboard/chart_data/"
+            }
+        },
+        {
+            "name": "Review Logs (Paginated)",
+            "request": {
+                "method": "GET",
+                "url": {
+                    "raw": "{{baseUrl}}/admin/dashboard/approved_entries/?page=1&page_size=10",
+                    "host": [
+                        "{{baseUrl}}"
+                    ],
+                    "path": [
+                        "admin",
+                        "dashboard",
+                        "approved_entries",
+                        ""
+                    ],
+                    "query": [
+                        {
+                            "key": "page",
+                            "value": "1"
+                        },
+                        {
+                            "key": "page_size",
+                            "value": "10"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "Get Log FHIR Export",
+            "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/dashboard/:id/fhir/",
+                "variable": [
+                    {
+                        "key": "id",
+                        "value": "LOG_UUID_HERE"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "List Users",
+            "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/users/"
+            }
+        },
+        {
+            "name": "Invite User",
+            "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/admin/users/invite/",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"email\": \"newstudent@example.com\",\n    \"role\": \"student\",\n    \"full_name\": \"New Student\"\n}"
+                }
+            }
+        },
+        {
+            "name": "Assign Preceptor",
+            "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/admin/assignments/",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n    \"student_id\": \"STUDENT_UUID\",\n    \"preceptor_id\": \"PRECEPTOR_UUID\"\n}"
+                }
+            }
+        }
+    ]
+}

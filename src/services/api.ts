@@ -272,5 +272,10 @@ export const api = {
     async getAdminApprovedReviews(page = 1, pageSize = 10) {
         const response = await apiClient.get(`admin/dashboard/approved_entries/?page=${page}&page_size=${pageSize}`);
         return response.data.data;
+    },
+
+    async getLogFHIR(id: string) {
+        const response = await apiClient.get(`admin/dashboard/${id}/fhir/`);
+        return response.data.data;
     }
 };

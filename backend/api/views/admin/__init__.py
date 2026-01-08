@@ -506,3 +506,74 @@ class AdminDashboardViewSet(ResponseMixin, viewsets.ViewSet):
             'num_pages': paginator.num_pages,
             'current_page': int(page_number)
         })
+
+    @action(detail=True, methods=['get'])
+    def fhir(self, request, pk=None):
+        """
+        Get FHIR format of the log entry (Simplified Format)
+        """
+        try:
+            entry = LogEntries.objects.get(id=pk)
+        except LogEntries.DoesNotExist:
+            return self.error_response("Log entry not found", status.HTTP_404_NOT_FOUND)
+
+        from datetime import datetime
+        
+        # Resource: Encounter (The Clinical Log)
+        encounter_resource = {
+            "resourceType": "Encounter",
+            "id": f"log-{str(entry.id)[:8]}", # or just str(entry.id)
+            "status": "finished" if entry.status == 'approved' else "planned",
+            "class": {
+                "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+                "code": "AMB",
+                "display": "ambulatory"
+            },
+            "subject": {
+                "display": f"Patient ID: {entry.patients_seen or 'N/A'}" # Using patients_seen or patient relation if exists
+            },
+            "period": {
+                "start": str(entry.date)
+            },
+            "reasonCode": [
+                {
+                    "text": entry.activities or "No activities recorded"
+                }
+            ],
+            "serviceType": {
+                "text": entry.specialty or "Clinical"
+            },
+            "location": [
+                {
+                    "location": {
+                        "display": entry.location or "Unknown Location"
+                    }
+                }
+            ],
+            "extension": [
+                {
+                    "url": "http://example.org/fhir/StructureDefinition/clinical-hours",
+                    "valueDecimal": float(entry.hours or 0)
+                },
+                {
+                    "url": "http://example.org/fhir/StructureDefinition/preceptor",
+                    "valueString": entry.supervisor_name or "Unknown"
+                }
+            ]
+        }
+        
+        # Assemble Bundle
+        bundle = {
+            "resourceType": "Bundle",
+            "type": "collection",
+            "timestamp": datetime.utcnow().isoformat() + "+00:00",
+            "identifier": {
+                "system": "http://example.org/fhir/student-export",
+                "value": f"student-{str(entry.student_id)[:8]}"
+            },
+            "entry": [
+                {"resource": encounter_resource}
+            ]
+        }
+        
+        return self.success_response(bundle)

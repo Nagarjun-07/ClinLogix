@@ -25,12 +25,12 @@ class AuditLogs(models.Model):
 
 class AuthorizedUsers(models.Model):
     email = models.TextField(primary_key=True)
-    role = models.TextField()
+    role = models.TextField(db_index=True)
     full_name = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField()
     invited_by = models.UUIDField(blank=True, null=True)
     institution = models.ForeignKey('Institutions', models.DO_NOTHING, blank=True, null=True)
-    status = models.TextField(blank=True, null=True)
+    status = models.TextField(blank=True, null=True, db_index=True)
 
     class Meta:
         managed = False
@@ -61,9 +61,9 @@ class Institutions(models.Model):
 class LogEntries(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     student = models.ForeignKey('Profiles', models.DO_NOTHING)
-    date = models.DateField()
+    date = models.DateField(db_index=True)
     location = models.TextField()
-    specialty = models.TextField()
+    specialty = models.TextField(db_index=True)
     hours = models.DecimalField(max_digits=5, decimal_places=2)
     activities = models.TextField(blank=True, null=True)
     learning_objectives = models.TextField(blank=True, null=True)
@@ -98,9 +98,9 @@ class Patients(models.Model):
 
 class Profiles(models.Model):
     id = models.UUIDField(primary_key=True)
-    email = models.TextField(blank=True, null=True)
-    full_name = models.TextField(blank=True, null=True)
-    role = models.TextField(blank=True, null=True)
+    email = models.TextField(blank=True, null=True, db_index=True)
+    full_name = models.TextField(blank=True, null=True, db_index=True)
+    role = models.TextField(blank=True, null=True, db_index=True)
     created_at = models.DateTimeField()
     institution = models.ForeignKey(Institutions, models.DO_NOTHING, blank=True, null=True)
 
@@ -127,7 +127,7 @@ class StudentPreceptorAssignments(models.Model):
     student = models.ForeignKey(Profiles, models.DO_NOTHING)
     preceptor = models.ForeignKey(Profiles, models.DO_NOTHING, related_name='studentpreceptorassignments_preceptor_set')
     assigned_at = models.DateTimeField()
-    status = models.TextField(blank=True, null=True)
+    status = models.TextField(blank=True, null=True, db_index=True)
 
     class Meta:
         managed = False
