@@ -10,6 +10,7 @@ interface Profile {
   email: string;
   role: string;
   student_count?: number;
+  institution_id?: string;
 }
 
 interface Assignment {
@@ -101,6 +102,27 @@ export function AssignPreceptorTab() {
         setError(`Already assigned to ${getPreceptorName(existingAssignment.preceptor)}`);
         return;
       }
+
+      // Validate Institution Match
+      const student = getSelectedStudent();
+      const preceptor = getSelectedPreceptor();
+
+      if (student && preceptor) {
+        const sInst = String(student.institution_id || '');
+        const pInst = String(preceptor.institution_id || '');
+
+        if (!sInst || !pInst) {
+          // If one is missing, stricly prevent assignment
+          if (sInst !== pInst) {
+            setError('Cannot assign: Student and Preceptor must belong to the same institution.');
+            return;
+          }
+        } else if (sInst !== pInst) {
+          setError('Cannot assign: Student and Preceptor must belong to the same institution.');
+          return;
+        }
+      }
+
       try {
         await api.assignStudentToPreceptor(selectedStudent, selectedPreceptor);
         showToast('Assignment successful!', 'success');

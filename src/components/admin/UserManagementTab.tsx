@@ -11,7 +11,13 @@ interface AuthorizedUser {
   role: 'student' | 'instructor';
   status: 'pending' | 'registered';
   created_at: string;
-  institution_id: string;
+  institution_id: string; // FK ID
+  institution_name?: string;
+}
+
+interface Institution {
+  id: string;
+  name: string;
 }
 
 export function UserManagementTab({ institutionId }: { institutionId?: string }) {
@@ -21,6 +27,7 @@ export function UserManagementTab({ institutionId }: { institutionId?: string })
   const [showAddModal, setShowAddModal] = useState(false);
   const [students, setStudents] = useState<AuthorizedUser[]>([]);
   const [preceptors, setPreceptors] = useState<AuthorizedUser[]>([]);
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Edit/Delete state
@@ -56,12 +63,14 @@ export function UserManagementTab({ institutionId }: { institutionId?: string })
   const loadUsers = async () => {
     setIsLoading(true);
     try {
-      const [studentsData, instructorsData] = await Promise.all([
+      const [studentsData, instructorsData, institutionsData] = await Promise.all([
         api.getAuthorizedUsers('student', institutionId),
-        api.getAuthorizedUsers('instructor', institutionId)
+        api.getAuthorizedUsers('instructor', institutionId),
+        api.fetchInstitutions()
       ]);
       setStudents(studentsData || []);
       setPreceptors(instructorsData || []);
+      setInstitutions(institutionsData || []);
     } catch (error) {
       console.error('Failed to load users:', error);
     } finally {
@@ -82,10 +91,10 @@ export function UserManagementTab({ institutionId }: { institutionId?: string })
     currentPage * itemsPerPage
   );
 
-  const handleAddUser = async (userData: { name: string; email: string }) => {
+  const handleAddUser = async (userData: { name: string; email: string; institution_id?: string }) => {
     try {
       const role = activeTab === 'students' ? 'student' : 'instructor';
-      await api.inviteUser(userData.email, userData.name, role, institutionId);
+      await api.inviteUser(userData.email, userData.name, role, userData.institution_id);
 
       // Send email using EmailJS
       const emailSent = await emailService.sendInvitation(userData.email, userData.name, role);
@@ -118,7 +127,8 @@ export function UserManagementTab({ institutionId }: { institutionId?: string })
     try {
       await api.updateStudent(originalEmail, {
         name: editingUser.full_name,
-        email: editingUser.email
+        email: editingUser.email,
+        institution_id: editingUser.institution_id
       });
       showToast('User updated successfully!', 'success');
       setShowEditModal(false);
@@ -216,6 +226,9 @@ export function UserManagementTab({ institutionId }: { institutionId?: string })
                   <th className="px-6 py-3 text-left text-xs text-slate-600 uppercase tracking-wider">Name</th>
                   <th className="px-6 py-3 text-left text-xs text-slate-600 uppercase tracking-wider">Email</th>
                   <th className="px-6 py-3 text-left text-xs text-slate-600 uppercase tracking-wider">
+                    Institution
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs text-slate-600 uppercase tracking-wider">
                     Role
                   </th>
                   <th className="px-6 py-3 text-left text-xs text-slate-600 uppercase tracking-wider">Status</th>
@@ -237,6 +250,11 @@ export function UserManagementTab({ institutionId }: { institutionId?: string })
                       <div className="flex items-center gap-2 text-sm text-slate-700">
                         <Mail className="w-4 h-4 text-slate-400" />
                         {user.email}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-slate-700">
+                        {(user as any).institution_name || institutions.find(i => i.id === user.institution_id)?.name || '—'}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -327,6 +345,7 @@ export function UserManagementTab({ institutionId }: { institutionId?: string })
       {showAddModal && (
         <AddUserModal
           userType={activeTab === 'students' ? 'Student' : 'Preceptor'}
+          institutions={institutions}
           onClose={() => setShowAddModal(false)}
           onSubmit={handleAddUser}
         />
@@ -360,6 +379,22 @@ export function UserManagementTab({ institutionId }: { institutionId?: string })
                   onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm text-slate-700 mb-1">Institution</label>
+                <select
+                  value={editingUser.institution_id || ''}
+                  onChange={(e) => setEditingUser({ ...editingUser, institution_id: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">No Institution</option>
+                  {institutions.map(inst => (
+                    <option key={inst.id} value={inst.id}>
+                      {inst.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
             <div className="flex gap-3 px-6 py-4 border-t border-slate-200">

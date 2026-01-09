@@ -160,17 +160,40 @@ class AdminUserManagementViewSet(ResponseMixin, viewsets.ModelViewSet):
             new_name = request.data.get('full_name')
             new_email = request.data.get('new_email')  # Use new_email to avoid confusion
             
+            # Update Institution if provided
+            institution_id = request.data.get('institution_id')
+            if institution_id is not None:
+                # Validate if empty string = clear institution? Or allow explicit null
+                if institution_id == "":
+                     auth_user.institution_id = None
+                else:
+                     auth_user.institution_id = institution_id
+
             if new_name:
                 auth_user.full_name = new_name
+            
+            # Email update logic
             if new_email and new_email != email:
-                # Check if new email already exists
                 if AuthorizedUsers.objects.filter(email=new_email).exists():
                     return Response({'error': 'Email already exists'}, status=status.HTTP_400_BAD_REQUEST)
                 auth_user.email = new_email
-                # Update Profiles too
-                Profiles.objects.filter(email=email).update(email=new_email, full_name=new_name or auth_user.full_name)
-            elif new_name:
-                Profiles.objects.filter(email=email).update(full_name=new_name)
+                
+                # Update Profiles in bulk
+                update_kwargs = {'email': new_email}
+                if new_name: update_kwargs['full_name'] = new_name
+                if institution_id is not None: 
+                    update_kwargs['institution_id'] = None if institution_id == "" else institution_id
+                
+                Profiles.objects.filter(email=email).update(**update_kwargs)
+            else:
+                # Update Profiles without email change
+                update_kwargs = {}
+                if new_name: update_kwargs['full_name'] = new_name
+                if institution_id is not None:
+                    update_kwargs['institution_id'] = None if institution_id == "" else institution_id
+                
+                if update_kwargs:
+                     Profiles.objects.filter(email=email).update(**update_kwargs)
                 
             auth_user.save()
             
@@ -256,7 +279,9 @@ class AdminAssignmentViewSet(ResponseMixin, viewsets.ModelViewSet):
                 'email': p.email,
                 'student_count': p.student_count,
                 'max_students': 5,
-                'status': status
+                'status': status,
+                'institution_name': p.institution.name if p.institution else None,
+                'institution_id': str(p.institution.id) if p.institution else None
             })
             
         return self.success_response(data)
@@ -459,6 +484,58 @@ class AdminDashboardViewSet(ResponseMixin, viewsets.ViewSet):
         })
 
     @action(detail=False, methods=['get'])
+    def institution_stats(self, request):
+        """
+        Get aggregated statistics per institution
+        """
+        from django.db.models import Count, Sum, Q
+        
+        # We need to aggregate based on Profiles and Logs
+        # Since relation is Institution -> Profile -> LogEntries
+        
+        insts = Institutions.objects.all()
+        
+        data = []
+        for inst in insts:
+            # 1. Get Profiles in this institution
+            # We filter by institution directly (safe single-table filter)
+            student_qs = Profiles.objects.filter(institution=inst, role='student')
+            student_count = student_qs.count()
+            
+            instructor_qs = Profiles.objects.filter(institution=inst, role='instructor')
+            instructor_count = instructor_qs.count()
+
+            # 2. Get Logs for these students (Manual Join)
+            # Fetch IDs to avoid complex cross-table joins on managed=False models
+            student_ids = student_qs.values_list('id', flat=True)
+            
+            # Use student_id__in or student__in
+            logs_qs = LogEntries.objects.filter(student__in=student_qs)
+            total_logs = logs_qs.count()
+            approved_logs = logs_qs.filter(status='approved').count()
+            pending_logs = logs_qs.filter(status='pending').count()
+            
+            # 3. Count assigned students (Manual Join)
+            from api.models import StudentPreceptorAssignments
+            assigned_students = StudentPreceptorAssignments.objects.filter(
+                student__in=student_qs,
+                status='active'
+            ).values('student').distinct().count()
+            
+            data.append({
+                'id': str(inst.id),
+                'name': inst.name,
+                'students': student_count,
+                'instructors': instructor_count,
+                'assigned_students': assigned_students,
+                'total_logs': total_logs,
+                'approved_logs': approved_logs,
+                'pending_logs': pending_logs
+            })
+            
+        return self.success_response(data)
+
+    @action(detail=False, methods=['get'])
     def approved_entries(self, request):
         """
         Get all approved log entries for admin review with pagination
@@ -507,10 +584,191 @@ class AdminDashboardViewSet(ResponseMixin, viewsets.ViewSet):
             'current_page': int(page_number)
         })
 
+    @action(detail=False, methods=['get'])
+    def recent_activity(self, request):
+        """
+        Get recent log activity for dashboard (Robust replacement for raw DB query)
+        """
+        from api.models import Profiles
+        # Fetch last 5 logs
+        recent_logs = LogEntries.objects.all().order_by('-submitted_at')[:5]
+        
+        data = []
+        for log in recent_logs:
+            student_name = "Unknown Student"
+            if log.student:
+                 try:
+                     student_name = log.student.full_name
+                 except: 
+                     pass
+            
+            action_text = "submitted a new entry"
+            type_code = "entry"
+            
+            if log.status == 'approved':
+                action_text = "entry was approved"
+                type_code = "approval"
+            elif log.status == 'rejected':
+                action_text = "entry needs revision"
+                type_code = "rejection"
+            elif log.status == 'pending':
+                action_text = "submitted for review"
+                type_code = "request"
+
+            data.append({
+                'id': str(log.id),
+                'student_name': student_name,
+                'action': action_text,
+                'time': log.submitted_at, # Frontend works out "time ago"
+                'type': type_code,
+                'status': log.status
+            })
+            
+        return self.success_response(data)
+
+
+    @action(detail=True, methods=['get'])
+    def download_report(self, request, pk=None):
+        """
+        Generate and download a detailed professional PDF report.
+        """
+        import io
+        from django.http import HttpResponse
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+        from reportlab.lib.units import inch
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT
+        from api.models import Profiles, Institutions
+
+        try:
+            entry = LogEntries.objects.get(pk=pk)
+        except LogEntries.DoesNotExist:
+            return self.error_response("Log entry not found", status=404)
+
+        # distinct manual lookups for safety
+        student_name = "Unknown Student"
+        hospital_name = "Unknown Institution"
+        
+        if entry.student_id:
+            try:
+                 student = Profiles.objects.get(id=entry.student_id)
+                 student_name = student.full_name or "Unknown"
+                 if student.institution_id:
+                     try:
+                         inst = Institutions.objects.get(id=student.institution_id)
+                         hospital_name = inst.name
+                     except Institutions.DoesNotExist:
+                         pass
+            except Profiles.DoesNotExist:
+                pass
+
+        # Specialty Context Data
+        SPECIALTY_DESC = {
+            "Internal Medicine": "Focuses on the comprehensive care of adult patients, dealing with the prevention, diagnosis, and treatment of adult diseases.",
+            "Surgery": "Involves the treatment of injuries, diseases, and deformities through physical operation and instrumentation.",
+            "Pediatrics": "Dedicated to the medical care of infants, children, and adolescents.",
+            "Family Medicine": "Provides continuing and comprehensive health care for the individual and family across all ages, genders, diseases, and parts of the body.",
+            "Psychiatry": "Focuses on the diagnosis, treatment, and prevention of mental, emotional, and behavioral disorders.",
+            "Obstetrics and Gynecology": "Specializes in female reproductive health and childbirth.",
+            "Neurology": "Deals with disorders of the nervous system, including the brain, spinal cord, and nerves.",
+            "Emergency Medicine": "Focuses on the immediate decision making and action necessary to prevent death or any further disability."
+        }
+        spec_desc = SPECIALTY_DESC.get(entry.specialty, f"Clinical rotation in the field of {entry.specialty}.")
+
+        # Create PDF buffer
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=50, bottomMargin=50)
+        
+        styles = getSampleStyleSheet()
+        Normal = styles['Normal']
+        
+        # Custom Styles
+        HeaderStyle = ParagraphStyle('Header', parent=styles['Heading1'], alignment=TA_CENTER, fontSize=18, spaceAfter=20, textColor=colors.darkblue)
+        SubHeaderStyle = ParagraphStyle('SubHeader', parent=styles['Heading2'], alignment=TA_CENTER, fontSize=14, spaceAfter=20, textColor=colors.grey)
+        SectionTitle = ParagraphStyle('SectionTitle', parent=styles['Heading3'], fontSize=12, spaceBefore=15, spaceAfter=6, textColor=colors.black, borderWidth=0, borderColor=colors.black)
+        
+        LabelStyle = ParagraphStyle('Label', parent=Normal, fontName='Helvetica-Bold', fontSize=10)
+        ValueStyle = ParagraphStyle('Value', parent=Normal, fontSize=10)
+        DescStyle = ParagraphStyle('Desc', parent=Normal, fontSize=10, leading=14, textColor=colors.darkslategrey)
+        
+        story = []
+
+        # 1. Header: Hospital Name (Centered)
+        story.append(Paragraph(hospital_name.upper(), HeaderStyle))
+        story.append(Paragraph("Clinical Rotation Log Report", SubHeaderStyle))
+        story.append(Spacer(1, 0.1*inch))
+        
+        # 2. Key Details Box (Table)
+        # We put Student, ID, Date, Specialty in a prominent box
+        meta_data = [
+            [Paragraph("Student Name:", LabelStyle), Paragraph(student_name, ValueStyle), Paragraph("Log Date:", LabelStyle), Paragraph(str(entry.date), ValueStyle)],
+            [Paragraph("Total Hours:", LabelStyle), Paragraph(f"{entry.hours or 0} Hours", ValueStyle), Paragraph("Specialty:", LabelStyle), Paragraph(entry.specialty or "N/A", ValueStyle)],
+        ]
+        
+        t_meta = Table(meta_data, colWidths=[1.2*inch, 2.3*inch, 1.2*inch, 2.3*inch])
+        t_meta.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+            ('BACKGROUND', (0,0), (-1,-1), colors.aliceblue),
+            ('PADDING', (0,0), (-1,-1), 8),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ]))
+        story.append(t_meta)
+        
+        # 3. Specialty Context
+        story.append(Spacer(1, 0.2*inch))
+        story.append(Paragraph(f"About {entry.specialty}", SectionTitle))
+        story.append(Paragraph(spec_desc, DescStyle))
+        
+        # 4. Clinical Activities
+        story.append(Spacer(1, 0.1*inch))
+        story.append(Paragraph("Clinical Activities & Observations", SectionTitle))
+        story.append(Paragraph(entry.activities or "No activities recorded.", Normal))
+        
+        # 5. Reflection
+        if entry.reflection:
+            story.append(Spacer(1, 0.1*inch))
+            story.append(Paragraph("Student Reflection", SectionTitle))
+            story.append(Paragraph(entry.reflection, Normal))
+            
+        # 6. Instructor Evaluation (Highlighted Box)
+        story.append(Spacer(1, 0.3*inch))
+        story.append(Paragraph("Instructor Evaluation Record", SectionTitle))
+        
+        eval_data = [
+            [Paragraph("Evaluator:", LabelStyle), Paragraph(entry.supervisor_name or "Unknown Instructor", ValueStyle)],
+            [Paragraph("Approval Status:", LabelStyle), Paragraph(f"<b>{entry.status.upper()}</b>", ValueStyle)],
+            [Paragraph("Feedback:", LabelStyle), Paragraph(f"<i>{entry.feedback or 'No feedback provided.'}</i>", ValueStyle)],
+        ]
+        
+        t_eval = Table(eval_data, colWidths=[1.5*inch, 5.5*inch])
+        t_eval.setStyle(TableStyle([
+            ('BOX', (0,0), (-1,-1), 1, colors.grey),
+            ('BACKGROUND', (0,0), (0,-1), colors.whitesmoke), # Label col background
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('PADDING', (0,0), (-1,-1), 10),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+        ]))
+        story.append(t_eval)
+        
+        # Footer / Sign-off
+        story.append(Spacer(1, 0.5*inch))
+        story.append(Paragraph(f"Verified by {hospital_name} Clinical Education System", ParagraphStyle('Footer', parent=Normal, fontSize=8, textColor=colors.grey, alignment=TA_CENTER)))
+
+        doc.build(story)
+        buffer.seek(0)
+        
+        response = HttpResponse(buffer, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="Report_{entry.date}_{student_name.replace(" ", "_")}.pdf"'
+        return response
+
+
+    @action(detail=True, methods=['get'])
     @action(detail=True, methods=['get'])
     def fhir(self, request, pk=None):
         """
-        Get FHIR format of the log entry (Simplified Format)
+        Get FHIR format of the log entry (Strict Mapping)
         """
         try:
             entry = LogEntries.objects.get(id=pk)
@@ -519,10 +777,69 @@ class AdminDashboardViewSet(ResponseMixin, viewsets.ViewSet):
 
         from datetime import datetime
         
+        # 1. Participants (Student & Supervisor)
+        participants = []
+        
+        # Student (Performer)
+        participants.append({
+            "type": [
+                {
+                    "coding": [
+                        {
+                            "system": "http://terminology.hl7.org/CodeSystem/v3-ParticipationType",
+                            "code": "PPRF",
+                            "display": "primary performer"
+                        }
+                    ]
+                }
+            ],
+            "individual": {
+                "reference": f"Practitioner/{entry.student_id}",
+                "display": entry.student.full_name if hasattr(entry.student, 'full_name') else "Student"
+            }
+        })
+
+        # Supervisor (Verifier)
+        if entry.supervisor_name:
+            participants.append({
+                "type": [
+                    {
+                        "coding": [
+                            {
+                                "system": "http://terminology.hl7.org/CodeSystem/v3-ParticipationType",
+                                "code": "VRF",
+                                "display": "verifier"
+                            }
+                        ]
+                    }
+                ],
+                "individual": {
+                    "display": entry.supervisor_name
+                    # Note: If we had a preceptor ID, we would use "reference": f"Practitioner/{id}"
+                }
+            })
+
+        # 2. Extensions (Hours, Reflection)
+        extensions = [
+            {
+                "url": "http://clinlogix.org/fhir/StructureDefinition/clinical-hours",
+                "valueDecimal": float(entry.hours or 0)
+            }
+        ]
+        if entry.reflection:
+            extensions.append({
+                "url": "http://clinlogix.org/fhir/StructureDefinition/student-reflection",
+                "valueString": entry.reflection
+            })
+
         # Resource: Encounter (The Clinical Log)
         encounter_resource = {
             "resourceType": "Encounter",
-            "id": f"log-{str(entry.id)[:8]}", # or just str(entry.id)
+            "id": str(entry.id),
+            "text": {
+                "status": "generated",
+                "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">Encounter for student log: {entry.specialty} on {entry.date}</div>"
+            },
             "status": "finished" if entry.status == 'approved' else "planned",
             "class": {
                 "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
@@ -530,8 +847,10 @@ class AdminDashboardViewSet(ResponseMixin, viewsets.ViewSet):
                 "display": "ambulatory"
             },
             "subject": {
-                "display": f"Patient ID: {entry.patients_seen or 'N/A'}" # Using patients_seen or patient relation if exists
+                "reference": f"Patient/{entry.patient.id}" if entry.patient else None,
+                "display": f"Patient Reference ID: {entry.patient.reference_id}" if entry.patient else (f"Patient ID: {entry.patients_seen}" if entry.patients_seen else "Unknown Patient")
             },
+            "participant": participants,
             "period": {
                 "start": str(entry.date)
             },
@@ -550,16 +869,7 @@ class AdminDashboardViewSet(ResponseMixin, viewsets.ViewSet):
                     }
                 }
             ],
-            "extension": [
-                {
-                    "url": "http://example.org/fhir/StructureDefinition/clinical-hours",
-                    "valueDecimal": float(entry.hours or 0)
-                },
-                {
-                    "url": "http://example.org/fhir/StructureDefinition/preceptor",
-                    "valueString": entry.supervisor_name or "Unknown"
-                }
-            ]
+            "extension": extensions
         }
         
         # Assemble Bundle
@@ -568,11 +878,14 @@ class AdminDashboardViewSet(ResponseMixin, viewsets.ViewSet):
             "type": "collection",
             "timestamp": datetime.utcnow().isoformat() + "+00:00",
             "identifier": {
-                "system": "http://example.org/fhir/student-export",
-                "value": f"student-{str(entry.student_id)[:8]}"
+                "system": "http://clinlogix.org/fhir/student-logs",
+                "value": str(entry.id)
             },
             "entry": [
-                {"resource": encounter_resource}
+                {
+                    "fullUrl": f"urn:uuid:{entry.id}",
+                    "resource": encounter_resource
+                }
             ]
         }
         

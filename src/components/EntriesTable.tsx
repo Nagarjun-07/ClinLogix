@@ -96,7 +96,10 @@ export function EntriesTable({ entries, showStudent, onReview }: EntriesTablePro
                     Review
                   </button>
                 ) : (
-                  <button className="flex items-center gap-1 text-sm text-slate-600 hover:text-slate-700">
+                  <button
+                    onClick={() => onReview && onReview(entry)}
+                    className="flex items-center gap-1 text-sm text-slate-600 hover:text-blue-600 transition-colors"
+                  >
                     <Eye className="w-4 h-4" />
                     View
                   </button>

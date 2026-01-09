@@ -25,11 +25,9 @@ export function Header({ currentRole, currentUser, onRoleChange, currentView = '
       <div className="container mx-auto px-4 max-w-7xl">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg">
-              <GraduationCap className="w-6 h-6 text-white" />
-            </div>
+            <img src="/logo.png" alt="Mediatlas" className="h-10 w-10 rounded-lg object-contain" />
             <div>
-              <h1 className="text-slate-900">Clinical Logbook</h1>
+              <h1 className="text-slate-900 font-bold tracking-tight">Mediatlas</h1>
               <p className="text-xs text-slate-500">Management System</p>
             </div>
           </div>
@@ -53,7 +51,7 @@ export function Header({ currentRole, currentUser, onRoleChange, currentView = '
                 <span className="text-sm text-slate-600">View as: {roleLabels[currentRole]}</span>
                 <ChevronDown className="w-4 h-4 text-slate-500" />
               </button>
-              
+
               {showDropdown && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-2 z-50">
                   {(['student', 'instructor', 'admin'] as UserRole[]).map((role) => (
@@ -63,9 +61,8 @@ export function Header({ currentRole, currentUser, onRoleChange, currentView = '
                         onRoleChange(role);
                         setShowDropdown(false);
                       }}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors ${
-                        currentRole === role ? 'text-blue-600 bg-blue-50' : 'text-slate-700'
-                      }`}
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors ${currentRole === role ? 'text-blue-600 bg-blue-50' : 'text-slate-700'
+                        }`}
                     >
                       {roleLabels[role]}
                     </button>

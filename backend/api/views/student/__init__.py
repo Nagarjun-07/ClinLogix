@@ -95,6 +95,17 @@ class StudentLogViewSet(FilterByUserMixin, ResponseMixin, viewsets.ModelViewSet)
         #     metadata={'date': str(instance.date)}
         # )
 
+    def perform_update(self, serializer):
+        """
+        Update log entry:
+        - Reset status to PENDING (so instructor sees it again)
+        - Unlock the entry (if it was locked/approved/rejected)
+        """
+        instance = serializer.save(
+            status=LogStatus.PENDING,
+            is_locked=False
+        )
+
     @action(detail=False, methods=['get'])
     def preceptor(self, request):
         """Get the assigned preceptor for the current student"""
@@ -114,6 +125,35 @@ class StudentLogViewSet(FilterByUserMixin, ResponseMixin, viewsets.ModelViewSet)
                 'email': p.email
             })
         return self.success_response(None)
+
+    @action(detail=False, methods=['get'])
+    def instructors(self, request):
+        """Get all instructors in the student's institution"""
+        from api.models import Profiles
+        
+        profile = self.get_user_profile()
+        institution = profile.institution
+        
+        if not institution:
+            # Fallback (all instructors?) or empty?
+            # User wants filtering, so maybe empty implies 'Assign an institution first'
+            return self.success_response([], message="No institution assigned to student.")
+
+        instructors = Profiles.objects.filter(
+            role='instructor', 
+            institution=institution
+        ).order_by('full_name')
+        
+        data = [
+            {
+                'id': str(p.id),
+                'full_name': p.full_name,
+                'email': p.email
+            }
+            for p in instructors
+        ]
+        
+        return self.success_response(data)
 
     @action(detail=False, methods=['post'])
     def bulk_submit(self, request):
