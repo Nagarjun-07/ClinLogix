@@ -1,10 +1,46 @@
+# System Files
+.DS_Store
+Thumbs.db
+*.swp
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+
+# Node / Frontend
 node_modules/
 dist/
 build/
-.env
-.DS_Store
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+
+# Python / Django / Backend
+backend/venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.log
+db.sqlite3
+db.sqlite3-journal
+local_settings.py
+
+# Django Static/Media (if served locally during dev)
+backend/staticfiles/
+backend/media/
+
+# IDEs and Editors
 .vscode/
 .idea/
-backend/venv/
-backend/__pycache__/
-*.pyc
+*.sublime-workspace
+
