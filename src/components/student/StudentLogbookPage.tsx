@@ -70,12 +70,12 @@ export function StudentLogbookPage() {
   const handleAddLog = async (logData: any) => {
     if (!currentUser) return;
     try {
-      const newEntry = {
+      const entryData = {
         studentId: currentUser.id,
         date: logData.date,
-        location: 'General Ward', // Default or from form
-        specialty: 'Internal Medicine', // Default or from form
-        hours: 8, // Default or from form
+        location: 'General Ward',
+        specialty: 'Internal Medicine', // Default for now, should come from form if available
+        hours: logData.hours || 0,
         activities: logData.activities,
         learningObjectives: 'Standard Rotation',
         reflection: logData.reflection,
@@ -83,13 +83,19 @@ export function StudentLogbookPage() {
         patientsSeen: logData.patientsSeen || 0
       };
 
-      await api.createLog(newEntry);
+      if (editingLog) {
+        await api.updateLog(editingLog.id, entryData);
+        showToast('Log entry updated and resubmitted', 'success');
+      } else {
+        await api.createLog(entryData);
+        showToast('Log entry created successfully', 'success');
+      }
 
-      // Reload to get server generated ID and status
       await loadData();
       setShowAddModal(false);
+      setEditingLog(null);
     } catch (error) {
-      console.error('Failed to create log:', error);
+      console.error('Failed to save log:', error);
       showToast('Failed to save log entry', 'error');
     }
   };
@@ -125,7 +131,7 @@ export function StudentLogbookPage() {
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-slate-900">My Clinical Logbook</h1>
+              <h1 className="text-slate-900 font-bold tracking-tight">My Mediatlas</h1>
               <p className="text-slate-600 mt-1">Clinical Rotation Record</p>
             </div>
             <div className="flex items-center gap-3">
@@ -304,7 +310,7 @@ export function StudentLogbookPage() {
             setShowAddModal(false);
             setEditingLog(null);
           }}
-          onSubmit={editingLog ? handleEditLog : handleAddLog}
+          onSubmit={handleAddLog}
         />
       )}
     </div>

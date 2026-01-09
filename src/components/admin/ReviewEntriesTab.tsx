@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, CheckCircle, User, Calendar, Stethoscope, Clock, MessageSquare, ChevronLeft, ChevronRight, FileJson, X, Copy, Check } from 'lucide-react';
+import { Search, CheckCircle, User, Calendar, Stethoscope, Clock, MessageSquare, ChevronLeft, ChevronRight, FileJson, X, Copy, Check, Download } from 'lucide-react';
 import { api } from '../../services/api';
 
 interface ApprovedEntry {
@@ -114,7 +114,7 @@ export function ReviewEntriesTab() {
                                     <tr className="bg-slate-50 border-b border-slate-200">
                                         <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Student</th>
                                         <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Date & Specialty</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Details (Hours)</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Details</th>
                                         <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Instructor</th>
                                         <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Feedback</th>
                                         <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center">Actions</th>
@@ -144,11 +144,7 @@ export function ReviewEntriesTab() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <div className="flex items-center gap-2">
-                                                    <Clock className="w-4 h-4 text-slate-400" />
-                                                    <span className="font-medium text-slate-900">{entry.hours} hrs</span>
-                                                </div>
-                                                <p className="text-xs text-slate-500 mt-1 line-clamp-1 max-w-[150px]" title={entry.activities}>
+                                                <p className="text-sm text-slate-600 line-clamp-2" title={entry.activities}>
                                                     {entry.activities}
                                                 </p>
                                             </td>
@@ -178,6 +174,29 @@ export function ReviewEntriesTab() {
                                                 >
                                                     <FileJson className="w-3.5 h-3.5" />
                                                     FHIR
+                                                </button>
+                                                <button
+                                                    onClick={async () => {
+                                                        try {
+                                                            const blob = await api.downloadLogReport(entry.id);
+                                                            const url = window.URL.createObjectURL(new Blob([blob]));
+                                                            const link = document.createElement('a');
+                                                            link.href = url;
+                                                            link.setAttribute('download', `Clinical_Log_${entry.date}_${entry.student_name}.pdf`);
+                                                            document.body.appendChild(link);
+                                                            link.click();
+                                                            link.parentNode?.removeChild(link);
+                                                            window.URL.revokeObjectURL(url);
+                                                        } catch (e) {
+                                                            console.error("Download failed", e);
+                                                            alert("Failed to download report");
+                                                        }
+                                                    }}
+                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100 transition-colors shadow-sm whitespace-nowrap ml-2"
+                                                    title="Download Report PDF"
+                                                >
+                                                    <Download className="w-3.5 h-3.5" />
+                                                    Report
                                                 </button>
                                             </td>
                                         </tr>

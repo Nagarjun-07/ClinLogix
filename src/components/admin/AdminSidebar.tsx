@@ -19,12 +19,10 @@ export function AdminSidebar({ activeTab, onTabChange }: AdminSidebarProps) {
       {/* Logo Section */}
       <div className="p-6 border-b border-slate-200">
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-600 to-teal-600 rounded-lg">
-            <LayoutDashboard className="w-6 h-6 text-white" />
-          </div>
+          <img src="/logo.png" alt="Mediatlas" className="w-10 h-10 rounded-lg object-contain" />
           <div>
             <h2 className="text-slate-900">Admin Panel</h2>
-            <p className="text-xs text-slate-500">Clinical Logbook</p>
+            <p className="text-sm font-bold tracking-tight text-slate-900">Mediatlas Admin</p>
           </div>
         </div>
       </div>
@@ -41,8 +39,8 @@ export function AdminSidebar({ activeTab, onTabChange }: AdminSidebarProps) {
                 <button
                   onClick={() => onTabChange(item.id)}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${isActive
-                      ? 'bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-md'
-                      : 'text-slate-700 hover:bg-slate-100'
+                    ? 'bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-md'
+                    : 'text-slate-700 hover:bg-slate-100'
                     }`}
                 >
                   <Icon className="w-5 h-5" />

@@ -6,11 +6,12 @@ import { useToast } from './ui/Toast';
 
 export function LoginPage() {
   const { showToast } = useToast();
-  const [email, setEmail] = useState('sarah.johnson@medical.edu');
-  const [password, setPassword] = useState('password');
+  const [email, setEmail] = useState('admin@stanford.edu');
+  const [password, setPassword] = useState('password123');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
   const [name, setName] = useState('');
   const [registrationMode, setRegistrationMode] = useState<'institutional' | 'user'>('user'); // Default to user (student/instructor) check
@@ -33,6 +34,7 @@ export function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setDebugInfo(null);
 
     try {
       if (isSignUp) {
@@ -65,7 +67,9 @@ export function LoginPage() {
     } catch (err: any) {
       console.error('Auth error:', err);
       console.error('Error response:', err.response);
-      setError(err.response?.data?.error || err.response?.data?.detail || err.message || 'An error occurred');
+      const errorMessage = err.response?.data?.error || err.response?.data?.detail || err.message || 'An error occurred';
+      setError(errorMessage);
+      setDebugInfo(`Status: ${err.response?.status}, URL: ${err.config?.url}`);
     } finally {
       setIsLoading(false);
     }
@@ -87,11 +91,9 @@ export function LoginPage() {
           {/* Header */}
           <div className="px-8 pt-8 pb-6 text-center border-b border-slate-100">
             <div className="flex items-center justify-center mb-4">
-              <div className="flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-teal-600 rounded-2xl shadow-lg">
-                <GraduationCap className="w-9 h-9 text-white" />
-              </div>
+              <img src="/logo.png" alt="Mediatlas" className="w-20 h-20 rounded-2xl shadow-lg object-contain" />
             </div>
-            <h1 className="text-slate-900 mb-1">Clinical Logbook</h1>
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-blue-700 to-teal-600 bg-clip-text text-transparent mb-2">Mediatlas</h1>
             <p className="text-slate-600">
               {isSignUp ? 'Create your account' : 'Sign in to your account'}
             </p>
@@ -221,9 +223,13 @@ export function LoginPage() {
             </div>
 
             {error && (
-              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-red-700">{error}</p>
+              <div className="flex flex-col gap-1 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-700 font-medium">Login Failed</p>
+                </div>
+                <p className="text-xs text-red-600 pl-7">{error}</p>
+                {debugInfo && <p className="text-[10px] text-red-400 pl-7 font-mono">{debugInfo}</p>}
               </div>
             )}
 

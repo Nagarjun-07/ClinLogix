@@ -16,15 +16,14 @@ class InstitutionSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ProfileSerializer(serializers.ModelSerializer):
-    id = serializers.UUIDField(read_only=True)
-    institution_id = serializers.SerializerMethodField()
+    institution_name = serializers.CharField(source='institution.name', read_only=True)
     
     def get_institution_id(self, obj):
         return str(obj.institution.id) if obj.institution else None
     
     class Meta:
         model = Profiles
-        fields = ['id', 'email', 'full_name', 'role', 'created_at', 'institution_id']
+        fields = ['id', 'email', 'full_name', 'role', 'created_at', 'institution_id', 'institution_name']
 
 
 
@@ -42,6 +41,8 @@ class PatientSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class AuthorizedUserSerializer(serializers.ModelSerializer):
+    institution_name = serializers.CharField(source='institution.name', read_only=True)
+    
     class Meta:
         model = AuthorizedUsers
         fields = '__all__'

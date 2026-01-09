@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { X, User, Mail } from 'lucide-react';
+import { X, User, Mail, Building } from 'lucide-react';
 
 interface AddUserModalProps {
   userType: 'Student' | 'Preceptor';
+  institutions: any[];
   onClose: () => void;
-  onSubmit: (userData: { name: string; email: string }) => void;
+  onSubmit: (userData: { name: string; email: string; institution_id?: string }) => void;
 }
 
-export function AddUserModal({ userType, onClose, onSubmit }: AddUserModalProps) {
+export function AddUserModal({ userType, institutions, onClose, onSubmit }: AddUserModalProps) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    institution_id: ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -68,6 +70,27 @@ export function AddUserModal({ userType, onClose, onSubmit }: AddUserModalProps)
             </div>
           </div>
 
+          {/* Institution */}
+          <div>
+            <label className="block text-sm text-slate-700 mb-2">Institution (Optional)</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Building className="w-5 h-5 text-slate-400" />
+              </div>
+              <select
+                value={formData.institution_id}
+                onChange={(e) => setFormData({ ...formData, institution_id: e.target.value })}
+                className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+              >
+                <option value="">No Institution Assigned</option>
+                {institutions.map(inst => (
+                  <option key={inst.id} value={inst.id}>
+                    {inst.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
 
           {/* Buttons */}

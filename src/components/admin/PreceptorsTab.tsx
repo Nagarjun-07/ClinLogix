@@ -1,4 +1,4 @@
-import { Search, Filter, UserPlus, Mail, Phone, Users, MoreVertical, X, Edit2, Trash2 } from 'lucide-react';
+import { Search, Filter, UserPlus, Mail, Phone, Users, MoreVertical, X, Edit2, Trash2, Building } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useToast } from '../ui/Toast';
@@ -11,8 +11,14 @@ interface Preceptor {
   phone: string;
   specialty: string;
   institution: string;
+  institutionId?: string;
   studentsCount: number;
   status: string;
+}
+
+interface Institution {
+  id: string;
+  name: string;
 }
 
 export function PreceptorsTab() {
@@ -20,9 +26,10 @@ export function PreceptorsTab() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [preceptors, setPreceptors] = useState<Preceptor[]>([]);
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newPreceptor, setNewPreceptor] = useState({ name: '', email: '' });
+  const [newPreceptor, setNewPreceptor] = useState({ name: '', email: '', institution_id: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Edit/Delete state
@@ -51,8 +58,12 @@ export function PreceptorsTab() {
   const loadPreceptors = async () => {
     setIsLoading(true);
     try {
-      const data = await api.getPreceptorsWithLoad();
+      const [data, insts] = await Promise.all([
+        api.getPreceptorsWithLoad(),
+        api.fetchInstitutions()
+      ]);
       setPreceptors(data);
+      setInstitutions(insts || []);
     } catch (error) {
       console.error('Failed to load preceptors:', error);
     } finally {
@@ -68,7 +79,7 @@ export function PreceptorsTab() {
 
     setIsSubmitting(true);
     try {
-      await api.addPreceptor(newPreceptor.email, newPreceptor.name);
+      await api.addPreceptor(newPreceptor.email, newPreceptor.name, newPreceptor.institution_id);
 
       // Send email using EmailJS
       const emailSent = await emailService.sendInvitation(newPreceptor.email, newPreceptor.name, 'instructor');
@@ -76,7 +87,7 @@ export function PreceptorsTab() {
       showToast(emailSent ? 'Preceptor invite sent successfully!' : 'Preceptor invited (Email failed)', emailSent ? 'success' : 'warning');
 
       setShowAddModal(false);
-      setNewPreceptor({ name: '', email: '' });
+      setNewPreceptor({ name: '', email: '', institution_id: '' });
       loadPreceptors(); // Refresh list
     } catch (error: any) {
       console.error('Failed to add preceptor:', error);
@@ -100,7 +111,8 @@ export function PreceptorsTab() {
     try {
       await api.updatePreceptor(originalEmail, {
         name: editingPreceptor.name,
-        email: editingPreceptor.email
+        email: editingPreceptor.email,
+        institution_id: editingPreceptor.institutionId
       });
       showToast('Preceptor updated successfully!', 'success');
       setShowEditModal(false);
@@ -196,6 +208,24 @@ export function PreceptorsTab() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+              <div>
+                <label className="block text-sm text-slate-700 mb-1">Institution</label>
+                <div className="relative">
+                  <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <select
+                    value={newPreceptor.institution_id}
+                    onChange={(e) => setNewPreceptor({ ...newPreceptor, institution_id: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 appearance-none bg-white"
+                  >
+                    <option value="">No Institution</option>
+                    {institutions.map(inst => (
+                      <option key={inst.id} value={inst.id}>
+                        {inst.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
               <p className="text-sm text-slate-500">
                 An invitation will be sent to this email. The preceptor can then register and access their dashboard.
               </p>
@@ -219,7 +249,7 @@ export function PreceptorsTab() {
         </div>
       )}
 
-      {/* Summary Cards - Clickable */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <button
           onClick={() => setFilterStatus('all')}
@@ -455,6 +485,24 @@ export function PreceptorsTab() {
                   onChange={(e) => setEditingPreceptor({ ...editingPreceptor, email: e.target.value })}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-700 mb-1">Institution</label>
+                <div className="relative">
+                  <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <select
+                    value={editingPreceptor.institutionId || ''}
+                    onChange={(e) => setEditingPreceptor({ ...editingPreceptor, institutionId: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 appearance-none bg-white"
+                  >
+                    <option value="">No Institution</option>
+                    {institutions.map(inst => (
+                      <option key={inst.id} value={inst.id}>
+                        {inst.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
             <div className="flex gap-3 px-6 py-4 border-t border-slate-200">
