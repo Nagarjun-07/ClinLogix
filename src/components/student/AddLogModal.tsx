@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Calendar, Users, FileText } from 'lucide-react';
+import { api } from '../../services/api';
 
 interface LogEntry {
   date: string;
   activities: string;
   patientsSeen: number;
+  hours: number;
   reflection: string;
+  supervisorName?: string;
 }
 
 interface AddLogModalProps {
@@ -19,8 +22,42 @@ export function AddLogModal({ initialData, onClose, onSubmit }: AddLogModalProps
     date: new Date().toISOString().split('T')[0],
     activities: '',
     patientsSeen: 0,
+    hours: 0,
     reflection: '',
+    supervisorName: '',
   });
+
+  const [supervisors, setSupervisors] = useState<any[]>([]);
+  const [institutionName, setInstitutionName] = useState('Loading...');
+  const [isPreceptorAssigned, setIsPreceptorAssigned] = useState(false);
+
+  useEffect(() => {
+    async function loadContext() {
+      try {
+        // 1. Get Institution Name
+        const user = await api.getCurrentUser();
+        setInstitutionName(user?.institution_name || 'No Institution Assigned');
+
+        // 2. Get Supervisors
+        const sups = await api.getInstitutionInstructors();
+        setSupervisors(sups || []);
+
+        // 3. Get Assigned Preceptor
+        const assigned = await api.getAssignedPreceptor();
+        if (assigned) {
+          setIsPreceptorAssigned(true);
+          // Only override if not editing or empty
+          if (!initialData?.supervisorName) {
+            setFormData(prev => ({ ...prev, supervisorName: assigned.full_name }));
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load institution context", e);
+        setInstitutionName('Error loading details');
+      }
+    }
+    loadContext();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,23 +95,45 @@ export function AddLogModal({ initialData, onClose, onSubmit }: AddLogModalProps
             />
           </div>
 
-          {/* Patients Seen */}
-          <div>
-            <label className="block text-sm text-slate-700 mb-2">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                Patients Seen
-              </div>
-            </label>
-            <input
-              type="number"
-              required
-              min="0"
-              value={formData.patientsSeen}
-              onChange={(e) => setFormData({ ...formData, patientsSeen: parseInt(e.target.value) })}
-              placeholder="Number of patients"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Patients Seen */}
+            <div>
+              <label className="block text-sm text-slate-700 mb-2">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Patients Seen
+                </div>
+              </label>
+              <input
+                type="number"
+                required
+                min="0"
+                value={formData.patientsSeen}
+                onChange={(e) => setFormData({ ...formData, patientsSeen: parseInt(e.target.value) })}
+                placeholder="Number of patients"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Total Hours - New Field */}
+            <div>
+              <label className="block text-sm text-slate-700 mb-2">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Total Time (Hours)
+                </div>
+              </label>
+              <input
+                type="number"
+                required
+                min="0"
+                step="0.5"
+                value={formData.hours}
+                onChange={(e) => setFormData({ ...formData, hours: parseFloat(e.target.value) })}
+                placeholder="e.g. 8.0"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
           </div>
 
           {/* Activities */}
@@ -93,6 +152,53 @@ export function AddLogModal({ initialData, onClose, onSubmit }: AddLogModalProps
               placeholder="Describe the clinical activities performed today..."
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             />
+          </div>
+
+          {/* Supervisor & Hospital */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-slate-700 mb-2">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Hospital (Institution)
+                </div>
+              </label>
+              <input
+                type="text"
+                readOnly
+                value={institutionName}
+                placeholder="Not assigned"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-500 cursor-not-allowed"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-slate-700 mb-2">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Supervisor
+                </div>
+              </label>
+              <select
+                required
+                value={formData.supervisorName}
+                disabled={isPreceptorAssigned}
+                onChange={(e) => setFormData({ ...formData, supervisorName: e.target.value })}
+                className={`w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isPreceptorAssigned ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+              >
+                <option value="">Select Supervisor</option>
+                {supervisors.map((sup: any) => (
+                  <option key={sup.id} value={sup.full_name}>
+                    {sup.full_name}
+                  </option>
+                ))}
+                {supervisors.length === 0 && <option value="Assigned Preceptor">Assigned Preceptor (Default)</option>}
+                {/* Fallback if assigned preceptor is not in list (unexpected but possible) */}
+                {isPreceptorAssigned && formData.supervisorName && !supervisors.find(s => s.full_name === formData.supervisorName) && (
+                  <option value={formData.supervisorName}>{formData.supervisorName}</option>
+                )}
+              </select>
+            </div>
           </div>
 
           {/* Reflection */}
