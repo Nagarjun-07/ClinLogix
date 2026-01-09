@@ -35,10 +35,12 @@ graph TD
     Instructor([👨‍⚕️ Instructor/Preceptor])
 
     %% System States
-    LogPending[📝 Log Entry (Pending)]
-    LogApproved[✅ Log Entry (Approved)]
-    LogRejected[❌ Log Entry (Rejected)]
+    LogPending[📝 Log Entry Pending]
+    LogApproved[✅ Log Entry Approved]
+    LogRejected[❌ Log Entry Rejected]
     Stats[📊 Dashboard Analytics]
+    App{Mediatlas App}
+    Decision{Approve?}
 
     %% Admin Workflow
     Admin -->|1. Invite Users| Student
@@ -46,15 +48,15 @@ graph TD
     Admin -->|Monitor| Stats
 
     %% Student Workflow
-    Student -->|2. Register & Login| App{Mediatlas App}
-    Student -->|3. Record Clinical Experience| LogPending
+    Student -->|2. Register & Login| App
+    App -->|3. Record Clinical Experience| LogPending
     LogRejected -->|5a. Edit & Resubmit| LogPending
 
     %% Instructor Workflow
     Instructor -->|4. Review Pending Logs| LogPending
-    LogPending -->|Decision| Decision{Approve?}
-    Decision -- Yes --> LogApproved
-    Decision -- No --> LogRejected
+    LogPending -->|Decision| Decision
+    Decision -->|Yes| LogApproved
+    Decision -->|No| LogRejected
 
     %% Data Flow
     LogApproved --> Stats
