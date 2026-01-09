@@ -7,6 +7,7 @@ export interface Profile {
     full_name: string;
     role: UserRole;
     institution_id?: string;
+    institution_name?: string;
 }
 
 export const api = {
@@ -111,6 +112,26 @@ export const api = {
         return response.data;
     },
 
+    async updateLog(id: string, entry: Partial<Omit<ClinicalEntry, 'id' | 'status' | 'submittedAt' | 'studentName'> & { patientId?: string, patientAge?: string, patientGender?: string }>) {
+        const response = await apiClient.put(`student/logs/${id}/`, {
+            student: entry.studentId,
+            date: entry.date,
+            location: entry.location,
+            specialty: entry.specialty,
+            hours: entry.hours,
+            activities: entry.activities,
+            learning_objectives: entry.learningObjectives,
+            reflection: entry.reflection,
+            supervisor_name: entry.supervisorName,
+            patients_seen: entry.patientsSeen,
+            // Extended fields
+            patient_id: entry.patientId,
+            patient_age: entry.patientAge,
+            patient_gender: entry.patientGender
+        });
+        return response.data;
+    },
+
     async submitLogs(ids: string[]) {
         const response = await apiClient.post('student/logs/bulk_submit/', { ids });
         return response.data;
@@ -152,6 +173,37 @@ export const api = {
         return response.data.filter((user: any) => user.role === role);
     },
 
+    async updatePreceptorAssignment(id: string, data: any) {
+        const response = await apiClient.put(`admin/assignments/${id}/`, data);
+        return response.data;
+    },
+
+    // Institution Management
+    async fetchInstitutions() {
+        const response = await apiClient.get('admin/institutions/');
+        // Handle standardized 'data' wrapper from ResponseMixin
+        if (response.data && response.data.data && Array.isArray(response.data.data)) {
+            return response.data.data;
+        }
+        // Handle direct array (standard DRF list without pagination)
+        if (Array.isArray(response.data)) {
+            return response.data;
+        }
+        // Handle paginated results (standard DRF with pagination)
+        if (response.data && response.data.results && Array.isArray(response.data.results)) {
+            return response.data.results;
+        }
+        return [];
+    },
+
+    // Student Logic
+    async getInstitutionInstructors() {
+        const response = await apiClient.get('student/logs/instructors/');
+        return response.data.data;
+    },
+
+
+
     async getInstructorStudents(_instructorId: string) {
         const response = await apiClient.get('instructor/students/');
         return response.data;
@@ -169,7 +221,8 @@ export const api = {
             email: p.email,
             phone: 'N/A',
             specialty: 'General', // Could be extended if profile has specialty field
-            institution: 'N/A',
+            institution: p.institution_name || 'N/A',
+            institutionId: p.institution_id,
             studentsCount: p.student_count || 0,
             status: p.status === 'registered' ? 'active' : p.status // Map 'registered' to 'active' for display
         }));
@@ -186,11 +239,12 @@ export const api = {
         return response.data;
     },
 
-    async updatePreceptor(email: string, data: { name?: string, email?: string }) {
+    async updatePreceptor(email: string, data: { name?: string, email?: string, institution_id?: string }) {
         // Update preceptor via admin users update endpoint
         const response = await apiClient.patch(`admin/users/update/${encodeURIComponent(email)}/`, {
             full_name: data.name,
-            new_email: data.email
+            new_email: data.email,
+            institution_id: data.institution_id
         });
         return response.data;
     },
@@ -201,11 +255,12 @@ export const api = {
         return response.data;
     },
 
-    async updateStudent(email: string, data: { name?: string, email?: string }) {
+    async updateStudent(email: string, data: { name?: string, email?: string, institution_id?: string }) {
         // Update student via admin users update endpoint
         const response = await apiClient.patch(`admin/users/update/${encodeURIComponent(email)}/`, {
             full_name: data.name,
-            new_email: data.email
+            new_email: data.email,
+            institution_id: data.institution_id
         });
         return response.data;
     },
@@ -269,13 +324,30 @@ export const api = {
         return response.data.data;
     },
 
+    async getInstitutionStats() {
+        const response = await apiClient.get('admin/dashboard/institution_stats/');
+        return response.data.data;
+    },
+
     async getAdminApprovedReviews(page = 1, pageSize = 10) {
         const response = await apiClient.get(`admin/dashboard/approved_entries/?page=${page}&page_size=${pageSize}`);
+        return response.data.data;
+    },
+
+    async getDashboardActivity() {
+        const response = await apiClient.get('admin/dashboard/recent_activity/');
         return response.data.data;
     },
 
     async getLogFHIR(id: string) {
         const response = await apiClient.get(`admin/dashboard/${id}/fhir/`);
         return response.data.data;
+    },
+
+    async downloadLogReport(id: string) {
+        const response = await apiClient.get(`admin/dashboard/${id}/download_report/`, {
+            responseType: 'blob'
+        });
+        return response.data;
     }
 };
