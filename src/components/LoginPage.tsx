@@ -66,10 +66,58 @@ export function LoginPage() {
       }
     } catch (err: any) {
       console.error('Auth error:', err);
-      console.error('Error response:', err.response);
-      const errorMessage = err.response?.data?.error || err.response?.data?.detail || err.message || 'An error occurred';
+
+      let errorMessage = 'An unexpected error occurred';
+      let debugMsg = '';
+
+      if (err.response) {
+        // Server responded with a status code outside of 2xx Range
+        const data = err.response.data;
+        const status = err.response.status;
+
+        debugMsg = `Status: ${status}, URL: ${err.config?.url}`;
+
+        if (status === 401) {
+          errorMessage = data.detail || 'Invalid email or password. Please try again.';
+        } else if (status === 400) {
+          if (data.error && data.error.includes('already registered')) {
+            errorMessage = 'Duplicate Login: This email is already registered. Please sign in instead.';
+          } else if (data.non_field_errors) {
+            errorMessage = Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
+          } else if (data.detail) {
+            errorMessage = data.detail;
+          } else {
+            // Check if any field specific errors
+            const firstField = Object.keys(data)[0];
+            if (firstField && firstField !== 'error') {
+              const fieldError = Array.isArray(data[firstField]) ? data[firstField][0] : data[firstField];
+              errorMessage = `${firstField.charAt(0).toUpperCase() + firstField.slice(1)}: ${fieldError}`;
+            } else {
+              errorMessage = data.error || 'Invalid request data.';
+            }
+          }
+        } else if (status === 403) {
+          errorMessage = data.detail || 'You do not have permission to perform this action.';
+        } else if (status === 404) {
+          errorMessage = 'Resource not found. Please check your connection or contact support.';
+        } else if (status >= 500) {
+          errorMessage = 'Server error. Please try again later.';
+        } else {
+          errorMessage = data.detail || data.error || 'An error occurred during authentication.';
+        }
+
+      } else if (err.request) {
+        // Request was made but no response was received
+        errorMessage = 'Network Error. Please check your internet connection and try again. Ensure the backend server is running.';
+        console.error('No response received:', err.request);
+      } else {
+        // Something happened in setting up the request
+        errorMessage = err.message || 'Error initializing login request.';
+      }
+
       setError(errorMessage);
-      setDebugInfo(`Status: ${err.response?.status}, URL: ${err.config?.url}`);
+      if (debugMsg) setDebugInfo(debugMsg);
+
     } finally {
       setIsLoading(false);
     }

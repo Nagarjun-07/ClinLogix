@@ -327,23 +327,59 @@ export function AssignPreceptorTab() {
       </div>
 
       {/* Current Assignments */}
+      {/* Current Assignments */}
       {assignedCount > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
-          <h3 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
-            <UserCheck className="w-4 h-4 text-green-600" />
-            Assigned ({assignedCount})
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <h3 className="text-lg font-medium text-slate-900 mb-4 flex items-center gap-2">
+            <UserCheck className="w-5 h-5 text-green-600" />
+            Current Assignments
           </h3>
-          <div className="flex flex-wrap gap-2">
-            {students.filter(s => getStudentAssignment(s.id)).map(s => {
-              const assignment = getStudentAssignment(s.id);
-              return (
-                <div key={s.id} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-green-50 border border-green-100 rounded-full text-xs">
-                  <span className="font-medium text-slate-700">{s.full_name}</span>
-                  <span className="text-slate-400">→</span>
-                  <span className="text-green-600">{assignment ? getPreceptorName(assignment.preceptor) : ''}</span>
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {(() => {
+              // Group assignments by preceptor
+              const grouped = new Map<string, Profile[]>();
+              assignments.forEach(a => {
+                if (a.status === 'active') {
+                  const s = students.find(student => student.id === a.student);
+                  if (s) {
+                    if (!grouped.has(a.preceptor)) grouped.set(a.preceptor, []);
+                    grouped.get(a.preceptor)?.push(s);
+                  }
+                }
+              });
+
+              return Array.from(grouped.entries()).map(([preceptorId, assignedStudents]) => {
+                const preceptor = preceptors.find(p => p.id === preceptorId);
+                const preceptorName = preceptor?.full_name || 'Unknown Preceptor';
+                const preceptorInst = preceptor?.institution_id ? ` • ${preceptor.institution_id}` : ''; // Or name if available but usually ID in this context
+
+                return (
+                  <div key={preceptorId} className="border border-slate-200 rounded-lg bg-slate-50 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-sm font-bold">
+                          {preceptorName[0]}
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-slate-900 text-sm">{preceptorName}</h4>
+                          <p className="text-xs text-slate-500">{assignedStudents.length} Student{assignedStudents.length !== 1 ? 's' : ''}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-3 space-y-2 max-h-60 overflow-y-auto">
+                      {assignedStudents.map(student => (
+                        <div key={student.id} className="flex items-center gap-2 p-2 bg-white rounded border border-slate-100 shadow-sm">
+                          <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            {student.full_name[0]}
+                          </div>
+                          <span className="text-sm text-slate-700 truncate">{student.full_name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
         </div>
       )}

@@ -2,8 +2,8 @@ import { Users, UserCheck, TrendingUp, BookOpen, Clock, AlertCircle, FileJson, X
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StatsCard } from '../StatsCard';
-import { ActivityChart } from '../ActivityChart';
-import { SpecialtyDistribution } from '../SpecialtyDistribution';
+import { ActivityChart } from './ActivityChart';
+import { SpecialtyDistribution } from './SpecialtyDistribution';
 import { supabase } from '../../lib/supabase';
 import { api } from '../../services/api';
 import { useToast } from '../ui/Toast';
@@ -60,29 +60,24 @@ export function DashboardTab() {
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch counts from Supabase directly for accurate stats
-      const [studentsRes, preceptorsRes, entriesRes, pendingRes, approvedRes] = await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'student'),
-        supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'instructor'),
-        supabase.from('log_entries').select('id, hours', { count: 'exact' }),
-        supabase.from('log_entries').select('id', { count: 'exact' }).eq('status', 'pending'),
-        supabase.from('log_entries').select('id', { count: 'exact' }).eq('status', 'approved'),
-      ]);
+      // 1. Fetch Stats from Backend (Secure & Accurate)
+      try {
+        const dashboardStats = await api.getAdminStats();
+        if (dashboardStats) {
+          setStats({
+            totalStudents: dashboardStats.totalStudents || 0,
+            totalPreceptors: dashboardStats.totalPreceptors || 0,
+            totalEntries: dashboardStats.totalEntries || 0,
+            pendingReviews: dashboardStats.pendingReviews || 0,
+            totalHours: dashboardStats.totalHours || 0,
+            approvedCount: dashboardStats.approvedCount || 0
+          });
+        }
+      } catch (e) {
+        console.error("Failed to fetch admin stats", e);
+      }
 
-      // Calculate total hours
-      const { data: hoursData } = await supabase.from('log_entries').select('hours');
-      const totalHours = hoursData?.reduce((sum, entry) => sum + (entry.hours || 0), 0) || 0;
-
-      setStats({
-        totalStudents: studentsRes.count || 0,
-        totalPreceptors: preceptorsRes.count || 0,
-        totalEntries: entriesRes.count || 0,
-        pendingReviews: pendingRes.count || 0,
-        totalHours: Math.round(totalHours),
-        approvedCount: approvedRes.count || 0
-      });
-
-      // Fetch aggregated chart data from backend
+      // 2. Fetch Aggregated Chart Data
       try {
         const charts = await api.getDashboardChartData();
         if (charts) {
@@ -95,12 +90,10 @@ export function DashboardTab() {
         console.error("Failed to load chart data", err);
       }
 
-      // Fetch recent activity from backend API (Robust)
+      // 3. Fetch Recent Activity
       try {
         const activities = await api.getDashboardActivity();
         if (activities) {
-          // Transform backend time format to "time ago" if needed, 
-          // or let the getTimeAgo helper handle the ISO string directly.
           const formattedActivities = activities.map((act: any) => ({
             ...act,
             time: getTimeAgo(new Date(act.time))

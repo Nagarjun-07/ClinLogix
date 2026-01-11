@@ -626,6 +626,74 @@ class AdminDashboardViewSet(ResponseMixin, viewsets.ViewSet):
             
         return self.success_response(data)
 
+    @action(detail=False, methods=['get'])
+    def chart_data(self, request):
+        """
+        Get aggregated chart data for activity and specialty
+        """
+        from django.db.models import Count, Sum
+        from django.db.models.functions import TruncMonth
+
+        # Activity Data (Entries & Hours per Month)
+        # SQLite/Postgres compatible TruncMonth
+        activity_qs = LogEntries.objects.annotate(
+            month=TruncMonth('date')
+        ).values('month').annotate(
+            entries=Count('id'),
+            hours=Sum('hours')
+        ).order_by('month')
+
+        activity_data = []
+        for item in activity_qs:
+            if item['month']:
+                activity_data.append({
+                    'month': item['month'].strftime('%b'),
+                    'entries': item['entries'],
+                    'hours': float(item['hours'] or 0)
+                })
+
+        # Specialty Data
+        specialty_qs = LogEntries.objects.values('specialty').annotate(
+            value=Count('id')
+        ).order_by('-value')
+
+        specialty_data = []
+        for item in specialty_qs:
+            if item['specialty']:
+                specialty_data.append({
+                    'name': item['specialty'],
+                    'value': item['value']
+                })
+
+        return self.success_response({
+            'activity': activity_data,
+            'specialty': specialty_data
+        })
+    
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """
+        Get aggregated counts for dashboard stats cards
+        """
+        total_students = Profiles.objects.filter(role='student').count()
+        total_preceptors = Profiles.objects.filter(role='instructor').count()
+        total_entries = LogEntries.objects.count()
+        pending_reviews = LogEntries.objects.filter(status='pending').count()
+        approved_count = LogEntries.objects.filter(status='approved').count()
+        
+        # Calculate total hours manually to be safe with Decimal/Float types
+        all_logs = LogEntries.objects.all()
+        total_hours = sum(entry.hours or 0 for entry in all_logs)
+
+        return self.success_response({
+            'totalStudents': total_students,
+            'totalPreceptors': total_preceptors,
+            'totalEntries': total_entries,
+            'pendingReviews': pending_reviews,
+            'totalHours': round(float(total_hours), 2),
+            'approvedCount': approved_count
+        })
+
 
     @action(detail=True, methods=['get'])
     def download_report(self, request, pk=None):
@@ -807,8 +875,8 @@ class AdminDashboardViewSet(ResponseMixin, viewsets.ViewSet):
                         "coding": [
                             {
                                 "system": "http://terminology.hl7.org/CodeSystem/v3-ParticipationType",
-                                "code": "VRF",
-                                "display": "verifier"
+                                "code": "ATND",
+                                "display": "attender"
                             }
                         ]
                     }
@@ -832,6 +900,13 @@ class AdminDashboardViewSet(ResponseMixin, viewsets.ViewSet):
                 "valueString": entry.reflection
             })
 
+        # Prepare Subject (conditionally to avoid reference: null)
+        subject_data = {
+            "display": f"Patient Reference ID: {entry.patient.reference_id}" if entry.patient else (f"Patient Count: {entry.patients_seen}" if entry.patients_seen else "Unknown Patient")
+        }
+        if entry.patient:
+            subject_data["reference"] = f"Patient/{entry.patient.id}"
+
         # Resource: Encounter (The Clinical Log)
         encounter_resource = {
             "resourceType": "Encounter",
@@ -846,10 +921,7 @@ class AdminDashboardViewSet(ResponseMixin, viewsets.ViewSet):
                 "code": "AMB",
                 "display": "ambulatory"
             },
-            "subject": {
-                "reference": f"Patient/{entry.patient.id}" if entry.patient else None,
-                "display": f"Patient Reference ID: {entry.patient.reference_id}" if entry.patient else (f"Patient ID: {entry.patients_seen}" if entry.patients_seen else "Unknown Patient")
-            },
+            "subject": subject_data,
             "participant": participants,
             "period": {
                 "start": str(entry.date)
