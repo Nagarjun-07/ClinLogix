@@ -5,6 +5,8 @@ import { api } from '../services/api';
 interface AddEntryModalProps {
   onClose: () => void;
   onSubmit: (entry: any) => void;
+  initialData?: any;
+  readOnly?: boolean;
 }
 
 const specialties = [
@@ -20,7 +22,7 @@ const specialties = [
   'Orthopedics'
 ];
 
-export function AddEntryModal({ onClose, onSubmit }: AddEntryModalProps) {
+export function AddEntryModal({ onClose, onSubmit, initialData, readOnly = false }: AddEntryModalProps) {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     hours: 0,
@@ -36,21 +38,39 @@ export function AddEntryModal({ onClose, onSubmit }: AddEntryModalProps) {
   });
 
   useEffect(() => {
-    const fetchPreceptor = async () => {
-      try {
-        const preceptor = await api.getAssignedPreceptor();
-        if (preceptor && preceptor.full_name) {
-          setFormData(prev => ({ ...prev, supervisorName: preceptor.full_name }));
+    if (initialData) {
+      setFormData({
+        date: initialData.date.split('T')[0],
+        hours: initialData.hours,
+        location: initialData.location,
+        specialty: initialData.specialty,
+        activities: initialData.activities,
+        learningObjectives: initialData.learning_objectives || initialData.learningObjectives || '',
+        reflection: initialData.reflection || '',
+        supervisorName: initialData.supervisor_name || initialData.supervisorName || '',
+        patientId: initialData.patient_id || initialData.patientId || '',
+        patientAge: initialData.patient_age || initialData.patientAge || '',
+        patientGender: initialData.patient_gender || initialData.patientGender || 'Male'
+      });
+    } else {
+      const fetchPreceptor = async () => {
+        try {
+          const preceptor = await api.getAssignedPreceptor();
+          if (preceptor && preceptor.full_name) {
+            setFormData(prev => ({ ...prev, supervisorName: preceptor.full_name }));
+          }
+        } catch (err) {
+          console.error('Failed to fetch preceptor', err);
         }
-      } catch (err) {
-        console.error('Failed to fetch preceptor', err);
-      }
-    };
-    fetchPreceptor();
-  }, []);
+      };
+      fetchPreceptor();
+    }
+  }, [initialData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (readOnly) return;
+
     onSubmit({
       ...formData,
       hours: Number(formData.hours),
@@ -223,14 +243,16 @@ export function AddEntryModal({ onClose, onSubmit }: AddEntryModalProps) {
               onClick={onClose}
               className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
             >
-              Cancel
+              Close
             </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg hover:from-blue-700 hover:to-teal-700 transition-all"
-            >
-              Submit Entry
-            </button>
+            {!readOnly && (
+              <button
+                type="submit"
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg hover:from-blue-700 hover:to-teal-700 transition-all"
+              >
+                Submit Entry
+              </button>
+            )}
           </div>
         </form>
       </div>

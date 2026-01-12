@@ -21,6 +21,7 @@ export function StudentDashboard({ currentUser, onViewChange }: StudentDashboard
   const [entries, setEntries] = useState<ClinicalEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [viewEntry, setViewEntry] = useState<ClinicalEntry | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
   useEffect(() => {
@@ -158,16 +159,35 @@ export function StudentDashboard({ currentUser, onViewChange }: StudentDashboard
           </div>
         </CardHeader>
         <CardContent>
-          <EntriesTable entries={filteredEntries} showStudent={false} />
+          <EntriesTable
+            entries={filteredEntries}
+            showStudent={false}
+            onReview={(entry) => setViewEntry(entry)}
+          />
         </CardContent>
       </Card>
 
-      {showAddModal && (
-        <AddEntryModal
-          onClose={() => setShowAddModal(false)}
-          onSubmit={handleAddEntry}
-        />
-      )}
-    </div>
+
+
+      {
+        showAddModal && (
+          <AddEntryModal
+            onClose={() => setShowAddModal(false)}
+            onSubmit={handleAddEntry}
+          />
+        )
+      }
+
+      {
+        viewEntry && (
+          <AddEntryModal
+            onClose={() => setViewEntry(null)}
+            onSubmit={() => { }}
+            initialData={viewEntry}
+            readOnly={true}
+          />
+        )
+      }
+    </div >
   );
 }

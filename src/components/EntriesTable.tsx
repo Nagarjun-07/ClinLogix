@@ -87,7 +87,7 @@ export function EntriesTable({ entries, showStudent, onReview }: EntriesTablePro
                 </span>
               </td>
               <td className="px-6 py-4">
-                {onReview && entry.status === 'pending' ? (
+                {onReview && showStudent && entry.status === 'pending' ? (
                   <button
                     onClick={() => onReview(entry)}
                     className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
@@ -98,7 +98,9 @@ export function EntriesTable({ entries, showStudent, onReview }: EntriesTablePro
                 ) : (
                   <button
                     onClick={() => onReview && onReview(entry)}
-                    className="flex items-center gap-1 text-sm text-slate-600 hover:text-blue-600 transition-colors"
+                    className={`flex items-center gap-1 text-sm ${!onReview ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:text-blue-600 transition-colors'
+                      }`}
+                    disabled={!onReview}
                   >
                     <Eye className="w-4 h-4" />
                     View
