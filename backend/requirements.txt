@@ -16,8 +16,8 @@ idna==3.11
 packaging==25.0
 pillow==11.3.0
 psycopg2-binary==2.9.11
-pydantic==1.10.13
-pydantic_core==2.41.5
+pydantic>=2.7.4
+pydantic_core
 PyJWT==2.10.1
 python-dotenv==1.2.1
 reportlab==4.4.7
