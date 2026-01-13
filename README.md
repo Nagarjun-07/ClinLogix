@@ -3,6 +3,7 @@
 Mediatlas is a modern, enterprise healthcare education system designed for medical education. It bridges the gap between students, clinical preceptors, and institutional administrators by providing a seamless interface for tracking clinical rotations, patient encounters, and educational competencies.
 
 The platform replaces traditional paper logbooks with a real-time, digital solution that ensures data accuracy, strictly enforces privacy standards, and provides actionable insights into student performance.
+https://excalidraw.com/#json=fPKSb9JswEOs09yHWg0l1,vjxJJh7WAEsM8wIyqTmUFg
 
 ---
 
