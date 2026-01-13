@@ -119,7 +119,7 @@ cd backend
 
 Backend will be available at: `http://localhost:8000`
 
-## 📊 Database
+## 📊 Database - Supa
 
 Connected to: **Supabase PostgreSQL** (live cloud database)
 
